@@ -1,0 +1,5 @@
+lot_size: 100
+price_tick: 0.01
+t_plus_one: true
+normal_limit_pct: 0.10
+st_limit_pct: 0.05

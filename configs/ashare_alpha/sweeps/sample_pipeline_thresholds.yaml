@@ -1,0 +1,30 @@
+sweep_name: sample_pipeline_thresholds
+description: "比较不同 BUY 阈值对每日信号数量的影响"
+command: run-pipeline
+base_config_dir: configs/ashare_alpha
+data_dir: data/sample/ashare_alpha
+output_root_dir: outputs/sweeps
+experiment_registry_dir: outputs/experiments
+common_args:
+  date: "2026-03-20"
+  audit_leakage: true
+  quality_report: true
+  check_security: true
+variants:
+  - name: buy_80
+    config_overrides:
+      scoring.yaml:
+        thresholds.buy: 80
+    tags: ["sweep", "threshold"]
+
+  - name: buy_85
+    config_overrides:
+      scoring.yaml:
+        thresholds.buy: 85
+    tags: ["sweep", "threshold"]
+
+  - name: buy_90
+    config_overrides:
+      scoring.yaml:
+        thresholds.buy: 90
+    tags: ["sweep", "threshold"]

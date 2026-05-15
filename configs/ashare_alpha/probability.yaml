@@ -1,0 +1,22 @@
+horizons:
+  - 5
+  - 10
+  - 20
+
+win_return_threshold: 0.0
+train_test_split_ratio: 0.7
+purge_gap: true
+n_bins: 5
+min_train_samples: 50
+min_bin_samples: 10
+prior_strength: 10.0
+prediction_threshold: 0.5
+include_only_universe_allowed: true
+include_only_computable_factors: true
+score_field: stock_score
+
+output:
+  save_dataset: true
+  save_test_predictions: true
+  save_model: true
+  save_metrics: true

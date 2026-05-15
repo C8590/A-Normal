@@ -1,0 +1,11 @@
+stock_code,stock_name,exchange,listed_date,industry,is_st
+000001.SZ,Ping An Bank,SZSE,1991-04-03,Bank,False
+000002.SZ,Vanke A,SZSE,1991-01-29,Real Estate,False
+000063.SZ,ZTE,SZSE,1997-11-18,Telecom,False
+000333.SZ,Midea Group,SZSE,2013-09-18,Home Appliance,False
+000651.SZ,Gree Electric,SZSE,1996-11-18,Home Appliance,False
+000858.SZ,Wuliangye,SZSE,1998-04-27,Food Beverage,False
+600000.SH,SPDB,SSE,1999-11-10,Bank,False
+600519.SH,Kweichow Moutai,SSE,2001-08-27,Food Beverage,False
+600036.SH,China Merchants Bank,SSE,2002-04-09,Bank,False
+601318.SH,Ping An Insurance,SSE,2007-03-01,Insurance,False

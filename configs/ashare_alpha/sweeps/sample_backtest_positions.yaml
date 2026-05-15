@@ -1,0 +1,23 @@
+sweep_name: sample_backtest_positions
+description: "比较最大持仓数量"
+command: run-backtest
+base_config_dir: configs/ashare_alpha
+data_dir: data/sample/ashare_alpha
+output_root_dir: outputs/sweeps
+experiment_registry_dir: outputs/experiments
+common_args:
+  start: "2026-01-05"
+  end: "2026-03-20"
+variants:
+  - name: max_pos_1
+    config_overrides:
+      backtest.yaml:
+        max_positions: 1
+  - name: max_pos_2
+    config_overrides:
+      backtest.yaml:
+        max_positions: 2
+  - name: max_pos_3
+    config_overrides:
+      backtest.yaml:
+        max_positions: 3

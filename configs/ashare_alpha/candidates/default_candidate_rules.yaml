@@ -1,0 +1,25 @@
+selection_name: default_candidate_rules
+
+weights:
+  return_score: 0.25
+  drawdown_score: 0.25
+  stability_score: 0.25
+  trade_activity_score: 0.10
+  warning_penalty_score: 0.15
+
+thresholds:
+  min_success_fold_count: 3
+  min_positive_return_ratio: 0.5
+  max_allowed_worst_drawdown: -0.15
+  min_trade_count_total: 0
+  max_warning_count: 5
+
+scoring:
+  return_cap: 0.20
+  drawdown_floor: -0.20
+  stability_std_cap: 0.10
+
+promotion:
+  allow_auto_promote: false
+  promoted_config_root: outputs/candidate_configs
+  require_manual_flag: true

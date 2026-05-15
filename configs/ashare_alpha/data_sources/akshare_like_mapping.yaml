@@ -1,0 +1,68 @@
+source_name: akshare_like
+
+datasets:
+  stock_info:
+    target_dataset: stock_master
+    field_mapping:
+      code: ts_code
+      name: name
+      exchange: exchange
+      board: board
+      industry: industry
+      list_date: list_date
+      delist_date: delist_date
+    defaults:
+      is_st: false
+      is_star_st: false
+      is_suspended: false
+      is_delisting_risk: false
+
+  stock_zh_a_hist:
+    target_dataset: daily_bar
+    field_mapping:
+      date: trade_date
+      code: ts_code
+      open: open
+      high: high
+      low: low
+      close: close
+      pre_close: pre_close
+      volume: volume
+      amount: amount
+      turnover_rate: turnover_rate
+    defaults:
+      pre_close: 0
+      limit_up: null
+      limit_down: null
+      is_trading: true
+
+  financial_abstract:
+    target_dataset: financial_summary
+    field_mapping:
+      code: ts_code
+      report_date: report_date
+      publish_date: publish_date
+      revenue_yoy: revenue_yoy
+      profit_yoy: profit_yoy
+      net_profit_yoy: net_profit_yoy
+      roe: roe
+      gross_margin: gross_margin
+      debt_to_asset: debt_to_asset
+      operating_cashflow_to_profit: operating_cashflow_to_profit
+      goodwill_to_equity: goodwill_to_equity
+
+  stock_notice:
+    target_dataset: announcement_event
+    field_mapping:
+      notice_time: event_time
+      code: ts_code
+      title: title
+      source: source
+      notice_type: event_type
+      content: raw_text
+    defaults:
+      source: akshare_like
+      event_type: unknown
+      event_direction: neutral
+      event_strength: 0.5
+      event_risk_level: low

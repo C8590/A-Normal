@@ -1,0 +1,9 @@
+lot_size: 100
+price_tick: 0.01
+t_plus_one: true
+normal_limit_pct: 0.10
+st_limit_pct: 0.05
+block_buy_at_limit_up: true
+block_sell_at_limit_down: true
+allow_short_selling: false
+allow_margin_trading: false

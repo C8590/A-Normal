@@ -1,0 +1,18 @@
+allowed_boards:
+  - main
+
+excluded_boards:
+  - chinext
+  - star
+  - bse
+
+exclude_st: true
+exclude_star_st: true
+exclude_delisting_risk: true
+exclude_suspended: true
+min_listing_days: 120
+min_avg_amount_20d: 10000000
+initial_cash_for_affordability: 10000
+max_one_lot_position_pct: 0.6
+block_recent_negative_events: true
+recent_event_window_days: 20

@@ -1,0 +1,4 @@
+﻿code,notice_time,title,source,notice_type,content
+600101,2026-02-21T09:15:00,Buyback proposal disclosed,offline_notice,buyback,Synthetic buyback notice.
+300101,2026-02-25T13:20:00,Earnings expected to increase,offline_notice,earnings_positive,Synthetic earnings notice.
+920101,2026-02-27T18:45:00,Equity pledge update,offline_notice,equity_pledge,Synthetic pledge notice.

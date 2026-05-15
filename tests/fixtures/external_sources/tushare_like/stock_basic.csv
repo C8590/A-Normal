@@ -1,0 +1,7 @@
+﻿ts_code,symbol,name,exchange,list_date,industry,market,delist_date,is_hs
+600101.SH,600101,Alpha Main One,SH,20100104,industrial,main,,N
+600102.SH,600102,Alpha Main Two,SSE,20120510,consumer,main,,N
+000101.SZ,000101,Beta Main One,SZ,20080321,finance,main,,N
+300101.SZ,300101,Gamma ChiNext,SZSE,20161103,software,chinext,,N
+688101.SH,688101,Delta STAR,SSE,20190722,semiconductor,star,,N
+920101.BJ,920101,Epsilon BSE,BJ,20211115,equipment,bse,,N

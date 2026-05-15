@@ -1,0 +1,36 @@
+allowed_exchanges:
+  - SSE
+  - SZSE
+mainboard_prefixes:
+  SSE:
+    - "600"
+    - "601"
+    - "603"
+    - "605"
+  SZSE:
+    - "000"
+    - "001"
+    - "002"
+    - "003"
+min_listing_trading_days: 120
+liquidity_lookback_days: 20
+min_avg_amount_20d: 10000000
+initial_capital: 10000
+lot_size: 100
+max_position_pct_for_entry: 1.0
+negative_event_lookback_days: 30
+negative_event_categories:
+  - regulatory_penalty
+  - investigation
+  - lawsuit
+  - earnings_warning
+negative_event_keywords:
+  - penalty
+  - investigation
+  - lawsuit
+  - loss warning
+  - regulatory
+delisting_risk_keywords:
+  - delisting risk
+  - 退市风险
+  - 终止上市

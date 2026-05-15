@@ -1,0 +1,9 @@
+event_time,ts_code,title,source,event_type,event_direction,event_strength,event_risk_level,raw_text
+2026-03-10T09:00:00,600001.SH,Board approves share buyback plan,sample_notice,buyback,positive,0.75,low,Sample buyback announcement.
+2026-03-12T10:30:00,600002.SH,Major contract signed with regional customer,sample_notice,major_contract,positive,0.7,low,Sample major contract announcement.
+2026-03-15T15:00:00,000001.SZ,Earnings expected to increase,sample_notice,earnings_positive,positive,0.68,low,Sample earnings positive announcement.
+2026-03-16T18:00:00,600003.SH,Controlling shareholder reduction plan,sample_notice,shareholder_reduce,negative,0.6,medium,Sample shareholder reduction announcement.
+2026-03-17T19:00:00,600004.SH,Regulatory penalty received,sample_notice,regulatory_penalty,negative,0.85,high,Sample regulatory penalty announcement.
+2026-03-18T20:00:00,600006.SH,Company under investigation,sample_notice,investigation,negative,0.95,high,Sample investigation announcement.
+2026-03-19T08:30:00,603999.SH,Earnings expected to decline,sample_notice,earnings_negative,negative,0.72,medium,Sample earnings negative announcement.
+2026-03-20T11:00:00,688001.SH,Equity pledge update,sample_notice,equity_pledge,neutral,0.4,medium,Sample equity pledge announcement.

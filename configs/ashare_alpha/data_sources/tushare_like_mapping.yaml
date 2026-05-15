@@ -1,0 +1,69 @@
+source_name: tushare_like
+
+datasets:
+  stock_basic:
+    target_dataset: stock_master
+    field_mapping:
+      ts_code: ts_code
+      symbol: symbol
+      name: name
+      exchange: exchange
+      market: board
+      industry: industry
+      list_date: list_date
+      delist_date: delist_date
+    defaults:
+      is_st: false
+      is_star_st: false
+      is_suspended: false
+      is_delisting_risk: false
+
+  daily:
+    target_dataset: daily_bar
+    field_mapping:
+      trade_date: trade_date
+      ts_code: ts_code
+      open: open
+      high: high
+      low: low
+      close: close
+      pre_close: pre_close
+      vol: volume
+      amount: amount
+    defaults:
+      turnover_rate: null
+      limit_up: null
+      limit_down: null
+      is_trading: true
+
+  fina_indicator:
+    target_dataset: financial_summary
+    field_mapping:
+      ts_code: ts_code
+      end_date: report_date
+      ann_date: publish_date
+      revenue_yoy: revenue_yoy
+      netprofit_yoy: net_profit_yoy
+      roe: roe
+      grossprofit_margin: gross_margin
+      debt_to_assets: debt_to_asset
+      ocf_to_profit: operating_cashflow_to_profit
+      goodwill_to_equity: goodwill_to_equity
+    defaults:
+      profit_yoy: null
+
+  announcements:
+    target_dataset: announcement_event
+    field_mapping:
+      ann_time: event_time
+      ts_code: ts_code
+      title: title
+      source: source
+      event_type: event_type
+      content: raw_text
+    defaults:
+      source: tushare_like
+      event_type: unknown
+      event_direction: neutral
+      event_strength: 0.5
+      event_risk_level: low

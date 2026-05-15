@@ -1,0 +1,11 @@
+stock_code,event_date,event_type,category,title
+000001.SZ,2026-01-05,earnings_positive,earnings,Ping An Bank earnings increase preview
+000002.SZ,2026-01-06,buyback,capital,Vanke A share buyback plan
+000063.SZ,2026-01-07,major_contract,operations,ZTE major contract announcement
+000333.SZ,2026-01-08,shareholder_increase,shareholder,Midea Group shareholder increase notice
+000651.SZ,2026-01-09,shareholder_reduce,shareholder,Gree Electric shareholder reduction plan
+000858.SZ,2026-01-10,earnings_negative,earnings,Wuliangye earnings decline warning
+600000.SH,2026-01-11,regulatory_penalty,risk,SPDB regulatory penalty notice
+600519.SH,2026-01-12,investigation,risk,Kweichow Moutai major investigation notice
+600036.SH,2026-01-13,litigation,risk,China Merchants Bank major litigation announcement
+601318.SH,2026-01-14,unlock_shares,capital,Ping An Insurance unlock shares reminder

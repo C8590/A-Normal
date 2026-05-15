@@ -1,0 +1,18 @@
+name: sample_backtest_walkforward
+description: "MVP 样例数据的滚动样本外回测"
+command: run-backtest
+data_dir: data/sample/ashare_alpha
+base_config_dir: configs/ashare_alpha
+output_root_dir: outputs/walkforward
+experiment_registry_dir: outputs/experiments
+start_date: "2026-01-05"
+end_date: "2026-03-20"
+train_window_days: null
+test_window_days: 21
+step_days: 14
+min_test_trading_days: 5
+common_args: {}
+tags:
+  - walkforward
+  - mvp
+notes: "用于验证回测流程稳定性，不代表投资建议"

@@ -1,0 +1,71 @@
+momentum_windows:
+  - 5
+  - 20
+  - 60
+volatility_window: 20
+max_drawdown_window: 20
+liquidity_window: 20
+recent_limit_window: 20
+ma_windows:
+  - 20
+  - 60
+
+event_scoring:
+  event_window_days: 20
+  decay_half_life_days: 7
+
+  base_scores:
+    earnings_positive: 25
+    earnings_negative: -35
+    buyback: 30
+    shareholder_increase: 25
+    shareholder_reduce: -30
+    regulatory_penalty: -45
+    investigation: -60
+    litigation: -35
+    major_contract: 30
+    equity_pledge: -20
+    unlock_shares: -20
+    unknown: 0
+
+  risk_scores:
+    earnings_positive: 5
+    earnings_negative: 45
+    buyback: 5
+    shareholder_increase: 5
+    shareholder_reduce: 40
+    regulatory_penalty: 70
+    investigation: 90
+    litigation: 60
+    major_contract: 10
+    equity_pledge: 45
+    unlock_shares: 35
+    unknown: 20
+
+  block_buy_event_types:
+    - regulatory_penalty
+    - investigation
+
+  high_risk_event_types:
+    - regulatory_penalty
+    - investigation
+    - litigation
+    - earnings_negative
+    - shareholder_reduce
+
+  source_weights:
+    exchange: 1.0
+    cninfo: 1.0
+    company: 0.9
+    media: 0.7
+    unknown: 0.5
+
+  direction_weights:
+    positive: 1.0
+    neutral: 0.0
+    negative: -1.0
+
+  risk_level_weights:
+    low: 0.5
+    medium: 1.0
+    high: 1.5

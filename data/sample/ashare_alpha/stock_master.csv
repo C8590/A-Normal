@@ -1,0 +1,13 @@
+ts_code,symbol,name,exchange,board,industry,list_date,delist_date,is_st,is_star_st,is_suspended,is_delisting_risk
+600001.SH,600001,Alpha Main Healthy,sse,main,industrial,2010-01-04,,false,false,false,false
+600002.SH,600002,Alpha Main Value,sse,main,consumer,2012-05-10,,false,false,false,false
+000001.SZ,000001,Beta Main Bank,szse,main,finance,2005-03-21,,false,false,false,false
+600003.SH,600003,ST Sample,sse,main,materials,2008-07-01,,true,false,false,false
+600004.SH,600004,Star ST Sample,sse,main,retail,2007-09-12,,false,true,false,false
+300001.SZ,300001,ChiNext Sample,szse,chinext,software,2014-11-03,,false,false,false,false
+688001.SH,688001,STAR Board Sample,sse,star,semiconductor,2019-07-22,,false,false,false,false
+920001.BJ,920001,BSE Sample,bse,bse,equipment,2021-11-15,,false,false,false,false
+600005.SH,600005,Suspended Sample,sse,main,energy,2011-02-18,,false,false,true,false
+600006.SH,600006,Delisting Risk Sample,sse,main,real_estate,2006-08-30,,false,false,false,true
+001001.SZ,001001,New Listing Sample,szse,main,healthcare,2026-02-18,,false,false,false,false
+603999.SH,603999,High Price Low Liquidity,sse,main,advanced_manufacturing,2016-06-06,,false,false,false,false

@@ -1,0 +1,21 @@
+initial_cash: 10000
+max_positions: 2
+max_position_weight: 0.6
+min_position_value: 1000
+rebalance_frequency: weekly
+start_date: null
+end_date: null
+benchmark: null
+save_trades: true
+save_daily_equity: true
+
+execution:
+  signal_timing: after_close
+  execution_price: next_open
+  slippage_bps: null
+  sell_when_signal_not_buy: true
+  exit_on_block: true
+  allow_partial_fills: false
+
+metrics:
+  annualization_days: 252

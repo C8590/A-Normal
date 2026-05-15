@@ -1,0 +1,143 @@
+announcement_events:
+  freshness_half_life_days: 30
+  stale_after_days: 90
+  default_event_type: unknown
+
+  event_type_scores:
+    earnings_positive:
+      score: 0.6
+      risk_score: 0.1
+      block_buy: false
+    earnings_negative:
+      score: -0.6
+      risk_score: 0.55
+      block_buy: false
+    buyback:
+      score: 0.5
+      risk_score: 0.1
+      block_buy: false
+    shareholder_increase:
+      score: 0.4
+      risk_score: 0.1
+      block_buy: false
+    shareholder_reduce:
+      score: -0.45
+      risk_score: 0.45
+      block_buy: false
+    regulatory_penalty:
+      score: -0.8
+      risk_score: 0.8
+      block_buy: false
+    investigation:
+      score: -1.0
+      risk_score: 0.95
+      block_buy: true
+    litigation:
+      score: -0.7
+      risk_score: 0.7
+      block_buy: false
+    major_contract:
+      score: 0.45
+      risk_score: 0.15
+      block_buy: false
+    equity_pledge:
+      score: -0.35
+      risk_score: 0.45
+      block_buy: false
+    unlock_shares:
+      score: -0.25
+      risk_score: 0.35
+      block_buy: false
+    unknown:
+      score: 0.0
+      risk_score: 0.2
+      block_buy: false
+
+  keyword_rules:
+    earnings_positive:
+      - 业绩预增
+      - 业绩大幅增长
+      - 净利润增长
+      - earnings increase
+      - profit growth
+    earnings_negative:
+      - 业绩预减
+      - 业绩大幅下滑
+      - 亏损
+      - profit warning
+      - loss warning
+      - earnings decline
+    buyback:
+      - 回购
+      - repurchase
+      - buyback
+    shareholder_increase:
+      - 增持
+      - shareholder increase
+    shareholder_reduce:
+      - 减持
+      - shareholder reduce
+      - shareholder reduction
+    regulatory_penalty:
+      - 处罚
+      - 行政处罚
+      - 监管处罚
+      - regulatory penalty
+    investigation:
+      - 立案调查
+      - 被调查
+      - investigation
+    litigation:
+      - 诉讼
+      - 仲裁
+      - litigation
+      - lawsuit
+    major_contract:
+      - 重大合同
+      - 中标
+      - major contract
+    equity_pledge:
+      - 股权质押
+      - equity pledge
+    unlock_shares:
+      - 限售股解禁
+      - 解禁
+      - unlock shares
+
+  intensity_rules:
+    high:
+      multiplier: 1.5
+      keywords:
+        - 重大
+        - 大幅
+        - 严重
+        - 巨额
+        - 立案调查
+        - major
+        - severe
+        - significant
+    medium:
+      multiplier: 1.0
+      keywords:
+        - 公告
+        - notice
+    low:
+      multiplier: 0.7
+      keywords:
+        - 提示
+        - reminder
+
+  block_buy:
+    event_types:
+      - investigation
+    high_risk_event_types:
+      - regulatory_penalty
+      - litigation
+    high_risk_keywords:
+      - 重大处罚
+      - 重大诉讼
+      - 高风险诉讼
+      - 涉嫌违法
+      - major penalty
+      - major litigation
+    min_risk_score: 0.9

@@ -1,0 +1,14 @@
+source_name: akshare_like_offline
+display_name: AkShare-like Offline Replay
+mode: offline_replay
+contract_source_name: akshare_like
+mapping_path: configs/ashare_alpha/data_sources/akshare_like_mapping.yaml
+fixture_dir: tests/fixtures/external_sources/akshare_like
+cache_dir: data/cache/external/akshare_like
+output_root_dir: data/materialized
+data_version_prefix: akshare_like
+requires_network: false
+requires_api_key: false
+api_key_env_var: null
+enabled: true
+notes: "离线 fixture 回放，不联网"

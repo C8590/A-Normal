@@ -1,0 +1,35 @@
+offline_mode: true
+allow_network: false
+allow_broker_connections: false
+allow_live_trading: false
+
+secret_policy:
+  allow_plaintext_secrets_in_config: false
+  allowed_secret_env_prefixes:
+    - ASHARE_ALPHA_
+  required_redaction: true
+
+network_policy:
+  require_explicit_enable: true
+  allowed_domains: []
+  default_timeout_seconds: 10
+  max_retries: 0
+
+data_sources:
+  local_csv:
+    enabled: true
+    requires_network: false
+    requires_api_key: false
+    api_key_env_var: null
+
+  tushare_stub:
+    enabled: false
+    requires_network: true
+    requires_api_key: true
+    api_key_env_var: ASHARE_ALPHA_TUSHARE_TOKEN
+
+  akshare_stub:
+    enabled: false
+    requires_network: true
+    requires_api_key: false
+    api_key_env_var: null
