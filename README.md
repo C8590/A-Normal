@@ -161,6 +161,34 @@ python -m ashare_alpha import-data --source-name tushare_like --source-data-dir 
 
 This layer is still fully offline: it does not import Tushare or AkShare SDKs, call external APIs, scrape websites, connect to brokers, or place orders. See `docs/ADAPTER_CONTRACT_SPEC.md`.
 
+## External Cache Store
+
+The external cache store is the staging layer for future real data adapters. In the current branch it is still offline only: it copies local fixture CSV files into `data/cache/external/{source_name}/{cache_version}/raw/`, writes `cache_manifest.json`, and can materialize the raw cache into the standard four-table `normalized/` directory.
+
+```bash
+python -m ashare_alpha cache-source-fixture \
+  --source-name tushare_like \
+  --fixture-dir tests/fixtures/external_sources/tushare_like \
+  --cache-version contract_sample
+
+python -m ashare_alpha list-caches
+python -m ashare_alpha inspect-cache --source-name tushare_like --cache-version contract_sample
+
+python -m ashare_alpha materialize-cache \
+  --source-name tushare_like \
+  --cache-version contract_sample
+```
+
+Normalized cache output can feed the existing local workflow:
+
+```bash
+python -m ashare_alpha validate-data --data-dir data/cache/external/tushare_like/contract_sample/normalized
+python -m ashare_alpha import-data --source-name tushare_like --source-data-dir data/cache/external/tushare_like/contract_sample/normalized --data-version contract_sample --quality-report
+python -m ashare_alpha run-pipeline --date 2026-03-20 --data-dir data/imports/tushare_like/contract_sample --audit-leakage --quality-report --check-security
+```
+
+Cache commands load the project security config and require network, broker connections, and live trading to remain disabled. They do not read real API keys and do not fetch data. See `docs/CACHE_STORE_SPEC.md`.
+
 ## Source Runtime Profiles
 
 External-source runtime profiles live under `configs/ashare_alpha/source_profiles/`. They describe how an external source can run in the current offline framework:
@@ -483,6 +511,21 @@ python -m ashare_alpha show-dashboard --path outputs/dashboard/DASHBOARD_ID
 ```
 
 The dashboard outputs `dashboard_index.json`, `dashboard_summary.json`, `dashboard.md`, and CSV tables for artifacts, recent experiments, top candidates, and warning items. It is read-only and does not modify research outputs, choose a live config, or place orders. See `docs/DASHBOARD_SPEC.md`.
+
+## Research Frontend
+
+`build-frontend` scans existing `outputs/` artifacts and writes a local read-only static HTML frontend under `outputs/frontend/`.
+
+```bash
+python -m ashare_alpha build-frontend
+python -m ashare_alpha build-frontend --format json
+python -m ashare_alpha build-frontend --update-latest
+python -m ashare_alpha serve-frontend --dir outputs/frontend/latest
+```
+
+The generated site contains `index.html`, `assets/app.js`, `assets/style.css`, and `frontend_data.json`. Data is embedded in `assets/app.js`, so `index.html` can be opened directly with `file://` without a server. `serve-frontend` uses Python standard library `http.server`, defaults to `127.0.0.1:8765`, serves static files only, and provides no API.
+
+The frontend is read-only: it does not call external APIs, use CDN/npm, change research logic, modify configs, connect to brokers, or place orders. See `docs/FRONTEND_SPEC.md`.
 
 ## Development
 
