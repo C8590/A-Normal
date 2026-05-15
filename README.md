@@ -484,6 +484,21 @@ python -m ashare_alpha show-dashboard --path outputs/dashboard/DASHBOARD_ID
 
 The dashboard outputs `dashboard_index.json`, `dashboard_summary.json`, `dashboard.md`, and CSV tables for artifacts, recent experiments, top candidates, and warning items. It is read-only and does not modify research outputs, choose a live config, or place orders. See `docs/DASHBOARD_SPEC.md`.
 
+## Research Frontend
+
+`build-frontend` scans existing `outputs/` artifacts and writes a local read-only static HTML frontend under `outputs/frontend/`.
+
+```bash
+python -m ashare_alpha build-frontend
+python -m ashare_alpha build-frontend --format json
+python -m ashare_alpha build-frontend --update-latest
+python -m ashare_alpha serve-frontend --dir outputs/frontend/latest
+```
+
+The generated site contains `index.html`, `assets/app.js`, `assets/style.css`, and `frontend_data.json`. Data is embedded in `assets/app.js`, so `index.html` can be opened directly with `file://` without a server. `serve-frontend` uses Python standard library `http.server`, defaults to `127.0.0.1:8765`, serves static files only, and provides no API.
+
+The frontend is read-only: it does not call external APIs, use CDN/npm, change research logic, modify configs, connect to brokers, or place orders. See `docs/FRONTEND_SPEC.md`.
+
 ## Development
 
 Install development dependencies:

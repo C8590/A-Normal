@@ -25,7 +25,7 @@ def test_command_matrix_generates_json_and_markdown(tmp_path: Path, monkeypatch,
 def test_command_matrix_contains_key_commands() -> None:
     commands = {row["command"] for row in command_matrix.COMMAND_MATRIX}
 
-    for command in ("run-pipeline", "run-backtest", "run-sweep", "run-walkforward", "build-dashboard"):
+    for command in ("run-pipeline", "run-backtest", "run-sweep", "run-walkforward", "build-dashboard", "build-frontend", "serve-frontend"):
         assert command in commands
 
 
@@ -33,4 +33,6 @@ def test_command_matrix_docs_exist() -> None:
     assert Path("docs/COMMAND_MATRIX.md").exists()
     text = Path("docs/COMMAND_MATRIX.md").read_text(encoding="utf-8")
     assert "build-dashboard" in text
+    assert "build-frontend" in text
+    assert "serve-frontend" in text
     assert "run-pipeline" in text

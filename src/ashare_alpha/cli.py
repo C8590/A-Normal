@@ -65,6 +65,7 @@ from ashare_alpha.experiments import (
     save_compare_result_md,
 )
 from ashare_alpha.factors import FactorBuilder, save_factor_csv, summarize_factors
+from ashare_alpha.frontend import collect_frontend_data, host_warning, save_frontend_site, serve_frontend
 from ashare_alpha.importing import ImportJob, load_import_manifest, normalize_source_name, validate_data_version
 from ashare_alpha.pipeline import PipelineRunner, save_pipeline_manifest, save_pipeline_summary_md
 from ashare_alpha.probability import (
@@ -454,6 +455,44 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output format. Default: text.",
     )
     show_dashboard_parser.set_defaults(handler=_cmd_show_dashboard)
+
+    build_frontend_parser = subparsers.add_parser(
+        "build-frontend",
+        help="Build a read-only static research frontend from outputs.",
+    )
+    build_frontend_parser.add_argument(
+        "--outputs-root",
+        type=Path,
+        default=Path("outputs"),
+        help="Research outputs root. Default: outputs.",
+    )
+    build_frontend_parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Frontend output directory. Defaults to outputs/frontend/frontend_YYYYMMDD_HHMMSS.",
+    )
+    build_frontend_parser.add_argument(
+        "--update-latest",
+        action="store_true",
+        help="Also sync the generated site to outputs/frontend/latest.",
+    )
+    build_frontend_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format. Default: text.",
+    )
+    build_frontend_parser.set_defaults(handler=_cmd_build_frontend)
+
+    serve_frontend_parser = subparsers.add_parser(
+        "serve-frontend",
+        help="Serve a generated read-only frontend directory with Python http.server.",
+    )
+    serve_frontend_parser.add_argument("--dir", type=Path, required=True, help="Generated frontend directory.")
+    serve_frontend_parser.add_argument("--host", default="127.0.0.1", help="Host. Default: 127.0.0.1.")
+    serve_frontend_parser.add_argument("--port", type=int, default=8765, help="Port. Default: 8765.")
+    serve_frontend_parser.set_defaults(handler=_cmd_serve_frontend)
 
     import_data_parser = subparsers.add_parser("import-data", help="Import local CSV data into a versioned data directory.")
     import_data_parser.add_argument("--source-name", required=True, help="Data source name, such as local_csv.")
@@ -1370,6 +1409,40 @@ def _cmd_show_dashboard(args: argparse.Namespace) -> int:
         for item in summary.warning_items:
             print(f"  - [{item.get('artifact_type')}] {item.get('name')}: {item.get('message')}")
         print(summary.summary_text)
+    return 0
+
+
+def _cmd_build_frontend(args: argparse.Namespace) -> int:
+    output_dir = args.output_dir or Path("outputs") / "frontend" / f"frontend_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    data = collect_frontend_data(args.outputs_root)
+    latest_dir = args.outputs_root / "frontend" / "latest"
+    save_frontend_site(data, output_dir, update_latest=args.update_latest, latest_dir=latest_dir)
+    payload = {
+        "artifact_count": data.summary.get("artifact_count", 0),
+        "warning_count": len(data.warning_items),
+        "output_dir": str(output_dir),
+        "latest_dir": str(latest_dir) if args.update_latest else None,
+        "index_html": str(output_dir / "index.html"),
+        "frontend_data_json": str(output_dir / "frontend_data.json"),
+    }
+    if args.format == "json":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print("Research frontend built")
+        print(f"Artifact count: {payload['artifact_count']}")
+        print(f"Warning count: {payload['warning_count']}")
+        print(f"Output: {output_dir}")
+        if args.update_latest:
+            print(f"Latest: {latest_dir}")
+        print("Static files: index.html, assets/app.js, assets/style.css, frontend_data.json")
+    return 0
+
+
+def _cmd_serve_frontend(args: argparse.Namespace) -> int:
+    warning = host_warning(args.host)
+    if warning:
+        print(warning, file=sys.stderr)
+    serve_frontend(args.dir, host=args.host, port=args.port)
     return 0
 
 

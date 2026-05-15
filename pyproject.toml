@@ -25,6 +25,9 @@ dev = [
 where = ["src"]
 include = ["ashare_alpha*"]
 
+[tool.setuptools.package-data]
+"ashare_alpha.frontend" = ["templates/*.html", "templates/*.js", "templates/*.css"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "tests"]

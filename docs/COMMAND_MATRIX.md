@@ -1,16 +1,9 @@
 # Command Matrix
 
-- generated_at: 2026-05-14T22:50:11.454199
-- command_count: 39
+- generated_at: 2026-05-15T12:39:58.021872
+- command_count: 41
 
 This matrix documents local offline research commands. It does not introduce external API calls, broker integration, web scraping, or live trading.
-
-## Release
-
-| command | purpose | required args | common example | output location | safety note |
-| --- | --- | --- | --- | --- | --- |
-| show-version | 显示当前 MVP 版本、包路径和 Python 版本。 | - | `python -m ashare_alpha show-version` | stdout | 只读版本信息，不联网。 |
-| release-check | 运行本地发布检查并生成 release manifest/checklist。 | - | `python -m ashare_alpha release-check` | outputs/release/... | 只做本地文件与安全边界检查，不运行重型回测。 |
 
 ## 基础
 
@@ -92,6 +85,13 @@ This matrix documents local offline research commands. It does not introduce ext
 | --- | --- | --- | --- | --- | --- |
 | build-dashboard | 构建静态研究 Dashboard。 | - | `python -m ashare_alpha build-dashboard` | outputs/dashboard/... | 只读扫描研究产物。 |
 | show-dashboard | 查看 Dashboard 摘要。 | --path | `python -m ashare_alpha show-dashboard --path outputs/dashboard/DASHBOARD_ID` | stdout | 只读 Dashboard 文件。 |
+
+## Frontend
+
+| command | purpose | required args | common example | output location | safety note |
+| --- | --- | --- | --- | --- | --- |
+| build-frontend | 生成本地只读静态 Research Frontend。 | - | `python -m ashare_alpha build-frontend --update-latest` | outputs/frontend/... | 只读扫描 outputs，不联网，不执行命令，不修改研究逻辑。 |
+| serve-frontend | 用 Python http.server 服务已生成的静态前端目录。 | --dir | `python -m ashare_alpha serve-frontend --dir outputs/frontend/latest` | local static server | 只服务静态文件，不提供 API，不接券商接口。 |
 
 ## 安全
 
