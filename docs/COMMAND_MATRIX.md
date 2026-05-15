@@ -1,7 +1,7 @@
 # Command Matrix
 
-- generated_at: 2026-05-15T11:58:21.942033
-- command_count: 45
+- generated_at: 2026-05-15T13:48:29.040339
+- command_count: 47
 
 This matrix documents local offline research commands. It does not introduce external API calls, broker integration, web scraping, or live trading.
 
@@ -96,6 +96,13 @@ This matrix documents local offline research commands. It does not introduce ext
 | --- | --- | --- | --- | --- | --- |
 | build-dashboard | 构建静态研究 Dashboard。 | - | `python -m ashare_alpha build-dashboard` | outputs/dashboard/... | 只读扫描研究产物。 |
 | show-dashboard | 查看 Dashboard 摘要。 | --path | `python -m ashare_alpha show-dashboard --path outputs/dashboard/DASHBOARD_ID` | stdout | 只读 Dashboard 文件。 |
+
+## Frontend
+
+| command | purpose | required args | common example | output location | safety note |
+| --- | --- | --- | --- | --- | --- |
+| build-frontend | 生成本地只读静态 Research Frontend。 | - | `python -m ashare_alpha build-frontend --update-latest` | outputs/frontend/... | 只读扫描 outputs，不联网，不执行命令，不修改研究逻辑。 |
+| serve-frontend | 用 Python http.server 服务已生成的静态前端目录。 | --dir | `python -m ashare_alpha serve-frontend --dir outputs/frontend/latest` | local static server | 只服务静态文件，不提供 API，不接券商接口。 |
 
 ## 安全
 
