@@ -112,6 +112,20 @@ Check the interpreter first with `py -3.12 --version`, then run `py -3.12 -m pip
 
 Run editable install or set `$env:PYTHONPATH = "src"` temporarily from the repository root.
 
+Editable install succeeds but `python -m ashare_alpha` or `python -c "import ashare_alpha"` still fails:
+
+Some damaged or non-standard global Python environments may install the editable package metadata but fail to process the generated `.pth` file on interpreter startup. First verify with a clean virtual environment:
+
+```powershell
+python -m venv .tmp\venv-editable-check
+.tmp\venv-editable-check\Scripts\python -m pip install -e .
+.tmp\venv-editable-check\Scripts\python -c "import ashare_alpha; print(ashare_alpha.__file__)"
+.tmp\venv-editable-check\Scripts\python -m ashare_alpha --help
+.tmp\venv-editable-check\Scripts\python -m ashare_alpha show-version
+```
+
+If the clean virtual environment works, the project package discovery is healthy and the global Python installation should be repaired or avoided. Use the clean virtual environment for development, or set `$env:PYTHONPATH = "src"` temporarily when validating the current checkout from the repository root.
+
 Windows permission warnings:
 
 Use a repo-local temporary directory and disable pytest cache provider as shown above.
