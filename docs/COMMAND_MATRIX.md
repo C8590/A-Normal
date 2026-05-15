@@ -1,7 +1,7 @@
 # Command Matrix
 
-- generated_at: 2026-05-14T22:50:11.454199
-- command_count: 39
+- generated_at: 2026-05-15T11:58:21.942033
+- command_count: 45
 
 This matrix documents local offline research commands. It does not introduce external API calls, broker integration, web scraping, or live trading.
 
@@ -27,6 +27,10 @@ This matrix documents local offline research commands. It does not introduce ext
 | inspect-data-source | 查看单个数据源元数据。 | --name | `python -m ashare_alpha inspect-data-source --name local_csv` | stdout | 不会调用外部数据源。 |
 | validate-adapter-contract | 校验外部适配器离线 fixture 合约。 | --source-name --fixture-dir | `python -m ashare_alpha validate-adapter-contract --source-name tushare_like --fixture-dir tests/fixtures/external_sources/tushare_like` | stdout | 只读离线 fixture。 |
 | convert-source-fixture | 将离线 fixture 转成标准本地表。 | --source-name --fixture-dir --output-dir | `python -m ashare_alpha convert-source-fixture --source-name tushare_like --fixture-dir tests/fixtures/external_sources/tushare_like --output-dir data/imports/tushare_like/contract_sample` | data/imports/... | 不调用供应商 API。 |
+| cache-source-fixture | 将离线 fixture 复制到外部 raw cache。 | --source-name --fixture-dir | `python -m ashare_alpha cache-source-fixture --source-name tushare_like --fixture-dir tests/fixtures/external_sources/tushare_like --cache-version contract_sample` | data/cache/external/... | 只读写本地文件，不联网。 |
+| list-caches | 列出外部缓存版本。 | - | `python -m ashare_alpha list-caches` | stdout | 只读本地 cache manifest。 |
+| inspect-cache | 查看单个外部缓存 manifest。 | --source-name --cache-version | `python -m ashare_alpha inspect-cache --source-name tushare_like --cache-version contract_sample` | stdout | 只读本地 cache manifest。 |
+| materialize-cache | 将 raw cache 转成标准四表。 | --source-name --cache-version | `python -m ashare_alpha materialize-cache --source-name tushare_like --cache-version contract_sample` | data/cache/external/.../normalized | 使用本地 mapping，不调用 API。 |
 | list-source-profiles | 列出外部源运行 profile。 | - | `python -m ashare_alpha list-source-profiles` | stdout | 只读配置。 |
 | inspect-source-profile | 检查一个 source profile 是否可离线运行。 | --profile | `python -m ashare_alpha inspect-source-profile --profile configs/ashare_alpha/source_profiles/tushare_like_offline.yaml` | stdout | 遵守 offline security policy。 |
 | materialize-source | 物化离线 source profile 数据。 | --profile --data-version | `python -m ashare_alpha materialize-source --profile configs/ashare_alpha/source_profiles/tushare_like_offline.yaml --data-version contract_sample` | data/materialized/... | 只使用离线 fixture/cache。 |

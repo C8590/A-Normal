@@ -38,6 +38,7 @@ from ashare_alpha.candidates import (
     save_candidate_selection_report_md,
 )
 from ashare_alpha.data import DataSourceMetadata, LocalCsvAdapter, get_default_data_source_registry
+from ashare_alpha.data.cache import ExternalCacheStore
 from ashare_alpha.dashboard import (
     DashboardScanner,
     build_dashboard_summary,
@@ -979,6 +980,104 @@ def build_parser() -> argparse.ArgumentParser:
     )
     convert_source_fixture_parser.set_defaults(handler=_cmd_convert_source_fixture)
 
+    cache_source_fixture_parser = subparsers.add_parser(
+        "cache-source-fixture",
+        help="Copy an offline external source fixture into the external raw cache store.",
+    )
+    cache_source_fixture_parser.add_argument("--source-name", required=True, help="External source name.")
+    cache_source_fixture_parser.add_argument(
+        "--fixture-dir",
+        type=Path,
+        required=True,
+        help="Directory containing the external source fixture CSV files.",
+    )
+    cache_source_fixture_parser.add_argument(
+        "--cache-root",
+        type=Path,
+        default=Path("data/cache/external"),
+        help="External cache root directory. Default: data/cache/external.",
+    )
+    cache_source_fixture_parser.add_argument("--cache-version", default=None, help="Optional cache version directory name.")
+    cache_source_fixture_parser.add_argument(
+        "--config-dir",
+        type=Path,
+        default=None,
+        help="Directory containing ashare_alpha YAML configs. Defaults to configs/ashare_alpha/.",
+    )
+    cache_source_fixture_parser.add_argument("--overwrite", action="store_true", help="Replace an existing cache version.")
+    cache_source_fixture_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format. Default: text.",
+    )
+    cache_source_fixture_parser.set_defaults(handler=_cmd_cache_source_fixture)
+
+    list_caches_parser = subparsers.add_parser("list-caches", help="List external raw/normalized cache versions.")
+    list_caches_parser.add_argument(
+        "--cache-root",
+        type=Path,
+        default=Path("data/cache/external"),
+        help="External cache root directory. Default: data/cache/external.",
+    )
+    list_caches_parser.add_argument("--source-name", default=None, help="Optional source name filter.")
+    list_caches_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format. Default: text.",
+    )
+    list_caches_parser.set_defaults(handler=_cmd_list_caches)
+
+    inspect_cache_parser = subparsers.add_parser("inspect-cache", help="Inspect one external cache manifest.")
+    inspect_cache_parser.add_argument("--source-name", required=True, help="External source name.")
+    inspect_cache_parser.add_argument("--cache-version", required=True, help="Cache version directory name.")
+    inspect_cache_parser.add_argument(
+        "--cache-root",
+        type=Path,
+        default=Path("data/cache/external"),
+        help="External cache root directory. Default: data/cache/external.",
+    )
+    inspect_cache_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format. Default: text.",
+    )
+    inspect_cache_parser.set_defaults(handler=_cmd_inspect_cache)
+
+    materialize_cache_parser = subparsers.add_parser(
+        "materialize-cache",
+        help="Convert an external raw cache version into normalized local CSV tables.",
+    )
+    materialize_cache_parser.add_argument("--source-name", required=True, help="External source name.")
+    materialize_cache_parser.add_argument("--cache-version", required=True, help="Cache version directory name.")
+    materialize_cache_parser.add_argument(
+        "--cache-root",
+        type=Path,
+        default=Path("data/cache/external"),
+        help="External cache root directory. Default: data/cache/external.",
+    )
+    materialize_cache_parser.add_argument(
+        "--mapping-path",
+        type=Path,
+        default=None,
+        help="Mapping YAML path. Defaults to configs/ashare_alpha/data_sources/SOURCE_NAME_mapping.yaml.",
+    )
+    materialize_cache_parser.add_argument(
+        "--config-dir",
+        type=Path,
+        default=None,
+        help="Directory containing ashare_alpha YAML configs. Defaults to configs/ashare_alpha/.",
+    )
+    materialize_cache_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format. Default: text.",
+    )
+    materialize_cache_parser.set_defaults(handler=_cmd_materialize_cache)
+
     materialize_source_parser = subparsers.add_parser(
         "materialize-source",
         help="Materialize an external source runtime profile into standard local CSV tables.",
@@ -1876,6 +1975,94 @@ def _cmd_convert_source_fixture(args: argparse.Namespace) -> int:
     return 0 if result.validation_passed else 1
 
 
+def _cmd_cache_source_fixture(args: argparse.Namespace) -> int:
+    config_dir = args.config_dir or _default_config_dir()
+    result = ExternalCacheStore(cache_root=args.cache_root, config_dir=config_dir).cache_source_fixture(
+        source_name=args.source_name,
+        fixture_dir=args.fixture_dir,
+        cache_version=args.cache_version,
+        overwrite=args.overwrite,
+    )
+    payload = result.model_dump(mode="json")
+    if args.format == "json":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print("Source fixture cached")
+        print(f"Status: {result.status}")
+        print(f"Source name: {result.source_name}")
+        print(f"Cache version: {result.cache_version}")
+        print(f"Raw dir: {result.raw_dir}")
+        print(f"Manifest: {result.manifest_path}")
+        if result.error_message:
+            print(f"Error: {result.error_message}")
+    return 0 if result.status != "FAILED" else 1
+
+
+def _cmd_list_caches(args: argparse.Namespace) -> int:
+    manifests = ExternalCacheStore(cache_root=args.cache_root).list_caches(args.source_name)
+    payload = [_cache_manifest_summary(manifest) for manifest in manifests]
+    if args.format == "json":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print("External caches:")
+        if not payload:
+            print("(none)")
+        for item in payload:
+            print(
+                f"- {item['source_name']} | {item['cache_version']} | status={item['status']} | "
+                f"raw_files={item['raw_file_count']} | normalized_files={item['normalized_file_count']}"
+            )
+    return 0
+
+
+def _cmd_inspect_cache(args: argparse.Namespace) -> int:
+    manifest = ExternalCacheStore(cache_root=args.cache_root).inspect_cache(args.source_name, args.cache_version)
+    payload = manifest.model_dump(mode="json")
+    if args.format == "json":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(f"Cache: {manifest.source_name}/{manifest.cache_version}")
+        print(f"Status: {manifest.status}")
+        print(f"Raw dir: {manifest.raw_dir}")
+        print(f"Normalized dir: {manifest.normalized_dir}")
+        print(f"Raw contract passed: {manifest.raw_contract_passed}")
+        print(f"Normalized validation passed: {manifest.normalized_validation_passed}")
+        print("Raw files:")
+        for item in manifest.raw_files:
+            print(f"  - {item.dataset_name}: rows={item.rows}, sha256={item.sha256}")
+        print("Normalized files:")
+        for item in manifest.normalized_files:
+            print(f"  - {item.dataset_name}: rows={item.rows}, sha256={item.sha256}")
+        if manifest.error_message:
+            print(f"Error: {manifest.error_message}")
+    return 0 if manifest.status != "FAILED" else 1
+
+
+def _cmd_materialize_cache(args: argparse.Namespace) -> int:
+    source_name = args.source_name.strip().lower()
+    config_dir = args.config_dir or _default_config_dir()
+    mapping_path = args.mapping_path or _default_mapping_path(source_name)
+    result = ExternalCacheStore(cache_root=args.cache_root, config_dir=config_dir).materialize_cache(
+        source_name=source_name,
+        cache_version=args.cache_version,
+        mapping_path=mapping_path,
+    )
+    payload = result.model_dump(mode="json")
+    if args.format == "json":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print("Cache materialization completed")
+        print(f"Status: {result.status}")
+        print(f"Source name: {result.source_name}")
+        print(f"Cache version: {result.cache_version}")
+        print(f"Normalized dir: {result.normalized_dir}")
+        print(f"Validation passed: {result.validation_passed}")
+        print(f"Manifest: {result.manifest_path}")
+        if result.error_message:
+            print(f"Error: {result.error_message}")
+    return 0 if result.status == "NORMALIZED" else 1
+
+
 def _cmd_materialize_source(args: argparse.Namespace) -> int:
     config_dir = args.config_dir or _default_config_dir()
     result = SourceMaterializer(
@@ -2684,6 +2871,20 @@ def _source_profile_summary(profile: SourceProfile) -> dict[str, object]:
         "requires_api_key": profile.requires_api_key,
         "fixture_dir": profile.fixture_dir,
         "cache_dir": profile.cache_dir,
+    }
+
+
+def _cache_manifest_summary(manifest) -> dict[str, object]:
+    return {
+        "source_name": manifest.source_name,
+        "cache_version": manifest.cache_version,
+        "status": manifest.status,
+        "cache_dir": manifest.cache_dir,
+        "raw_file_count": len(manifest.raw_files),
+        "normalized_file_count": len(manifest.normalized_files),
+        "raw_contract_passed": manifest.raw_contract_passed,
+        "normalized_validation_passed": manifest.normalized_validation_passed,
+        "updated_at": manifest.updated_at.isoformat(),
     }
 
 
