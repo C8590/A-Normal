@@ -85,6 +85,7 @@ from ashare_alpha.quality import (
     save_quality_report_json,
     save_quality_report_md,
 )
+from ashare_alpha.realdata import RealDataOfflineDrillRunner, load_realdata_offline_drill_result
 from ashare_alpha.release import ReleaseChecker, save_release_checklist_md, save_release_manifest_json
 from ashare_alpha.reports import (
     BacktestReportBuilder,
@@ -1148,6 +1149,38 @@ def build_parser() -> argparse.ArgumentParser:
     )
     materialize_source_parser.set_defaults(handler=_cmd_materialize_source)
 
+    run_realdata_drill_parser = subparsers.add_parser(
+        "run-realdata-offline-drill",
+        help="Run the v0.3 offline real-data source drill workflow.",
+    )
+    run_realdata_drill_parser.add_argument("--spec", type=Path, required=True, help="Real-data offline drill YAML spec.")
+    run_realdata_drill_parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Optional drill output root. Defaults to spec.output_root_dir.",
+    )
+    run_realdata_drill_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format. Default: text.",
+    )
+    run_realdata_drill_parser.set_defaults(handler=_cmd_run_realdata_offline_drill)
+
+    show_realdata_drill_parser = subparsers.add_parser(
+        "show-realdata-drill",
+        help="Show a completed real-data offline drill result.",
+    )
+    show_realdata_drill_parser.add_argument("--path", type=Path, required=True, help="Path to drill_result.json.")
+    show_realdata_drill_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format. Default: text.",
+    )
+    show_realdata_drill_parser.set_defaults(handler=_cmd_show_realdata_drill)
+
     run_pipeline_parser = subparsers.add_parser("run-pipeline", help="Run the complete daily research pipeline.")
     run_pipeline_parser.add_argument("--date", required=True, help="Pipeline date in YYYY-MM-DD format.")
     run_pipeline_parser.add_argument(
@@ -2175,6 +2208,55 @@ def _cmd_materialize_source(args: argparse.Namespace) -> int:
     return 0 if result.status == "SUCCESS" else 1
 
 
+def _cmd_run_realdata_offline_drill(args: argparse.Namespace) -> int:
+    result = RealDataOfflineDrillRunner(args.spec, output_dir=args.output_dir).run()
+    payload = _realdata_drill_summary(result)
+    if args.format == "json":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print("Real data offline drill completed")
+        print(f"Drill id: {payload['drill_id']}")
+        print(f"Source name: {payload['source_name']}")
+        print(f"Data version: {payload['data_version']}")
+        print(f"Target date: {payload['target_date']}")
+        print(f"Status: {payload['status']}")
+        print(f"Materialized data dir: {payload['materialized_data_dir'] or '-'}")
+        print(f"Imported data dir: {payload['imported_data_dir'] or '-'}")
+        print(f"Pipeline output dir: {payload['pipeline_output_dir'] or '-'}")
+        print(f"Frontend output dir: {payload['frontend_output_dir'] or '-'}")
+        print(f"Dashboard output dir: {payload['dashboard_output_dir'] or '-'}")
+        print(f"Experiment id: {payload['experiment_id'] or '-'}")
+        print(f"Output dir: {payload['output_dir']}")
+        if result.status == "PARTIAL":
+            print("Optional step failed; inspect drill_report.md and step_summary.csv.")
+        if result.status == "FAILED":
+            print("Required step failed; inspect drill_report.md and step_summary.csv.")
+    return 1 if result.status == "FAILED" else 0
+
+
+def _cmd_show_realdata_drill(args: argparse.Namespace) -> int:
+    result = load_realdata_offline_drill_result(args.path)
+    if args.format == "json":
+        print(json.dumps(result.model_dump(mode="json"), ensure_ascii=False, indent=2))
+        return 0
+
+    payload = _realdata_drill_summary(result)
+    print(f"Real data offline drill: {payload['drill_id']}")
+    print(f"Source name: {payload['source_name']}")
+    print(f"Data version: {payload['data_version']}")
+    print(f"Target date: {payload['target_date']}")
+    print(f"Status: {payload['status']}")
+    print(f"Output dir: {payload['output_dir']}")
+    print(f"Experiment id: {payload['experiment_id'] or '-'}")
+    print("Steps:")
+    for step in result.steps:
+        duration = "-" if step.duration_seconds is None else f"{step.duration_seconds:.3f}s"
+        print(f"  - {step.name}: {step.status} ({duration})")
+        if step.error_message:
+            print(f"    error: {step.error_message}")
+    return 0
+
+
 def _cmd_list_imports(args: argparse.Namespace) -> int:
     manifests = _scan_import_manifests(args.target_root_dir, args.source_name)
     payload = [_import_summary(manifest) for manifest in manifests]
@@ -2911,6 +2993,25 @@ def _import_summary(manifest) -> dict[str, object]:
         "validation_passed": manifest.validation_passed,
         "row_counts": manifest.row_counts,
         "target_data_dir": manifest.target_data_dir,
+    }
+
+
+def _realdata_drill_summary(result) -> dict[str, object]:
+    return {
+        "drill_id": result.drill_id,
+        "drill_name": result.drill_name,
+        "source_name": result.source_name,
+        "data_version": result.data_version,
+        "target_date": result.target_date.isoformat(),
+        "status": result.status,
+        "materialized_data_dir": result.materialized_data_dir,
+        "imported_data_dir": result.imported_data_dir,
+        "pipeline_output_dir": result.pipeline_output_dir,
+        "frontend_output_dir": result.frontend_output_dir,
+        "dashboard_output_dir": result.dashboard_output_dir,
+        "experiment_id": result.experiment_id,
+        "output_dir": result.output_dir,
+        "failed_steps": [step.name for step in result.steps if step.status == "FAILED"],
     }
 
 
