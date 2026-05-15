@@ -1,0 +1,15 @@
+drill_name: tushare_like_offline_drill
+source_profile: configs/ashare_alpha/source_profiles/tushare_like_offline.yaml
+source_name: tushare_like_offline
+data_version: v0_3_drill
+target_date: "2026-03-20"
+output_root_dir: outputs/realdata
+experiment_registry_dir: outputs/experiments
+run_quality_report: true
+run_leakage_audit: true
+run_security_check: true
+run_pipeline: true
+build_frontend: true
+build_dashboard: true
+record_experiment: true
+notes: "v0.3 real-data-offline drill using offline fixture"

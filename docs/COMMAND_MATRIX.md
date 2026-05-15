@@ -1,7 +1,7 @@
 # Command Matrix
 
-- generated_at: 2026-05-15T13:48:29.040339
-- command_count: 47
+- generated_at: 2026-05-15T18:06:22.240432
+- command_count: 49
 
 This matrix documents local offline research commands. It does not introduce external API calls, broker integration, web scraping, or live trading.
 
@@ -34,6 +34,8 @@ This matrix documents local offline research commands. It does not introduce ext
 | list-source-profiles | 列出外部源运行 profile。 | - | `python -m ashare_alpha list-source-profiles` | stdout | 只读配置。 |
 | inspect-source-profile | 检查一个 source profile 是否可离线运行。 | --profile | `python -m ashare_alpha inspect-source-profile --profile configs/ashare_alpha/source_profiles/tushare_like_offline.yaml` | stdout | 遵守 offline security policy。 |
 | materialize-source | 物化离线 source profile 数据。 | --profile --data-version | `python -m ashare_alpha materialize-source --profile configs/ashare_alpha/source_profiles/tushare_like_offline.yaml --data-version contract_sample` | data/materialized/... | 只使用离线 fixture/cache。 |
+| run-realdata-offline-drill | 运行 v0.3 离线真实数据演练链路。 | --spec | `python -m ashare_alpha run-realdata-offline-drill --spec configs/ashare_alpha/realdata/tushare_like_offline_drill.yaml` | outputs/realdata/... | 只使用离线 fixture/cache，不调用外部 API、不接券商、不下单。 |
+| show-realdata-drill | 查看已保存的离线真实数据演练结果。 | --path | `python -m ashare_alpha show-realdata-drill --path outputs/realdata/DRILL_ID/drill_result.json` | stdout | 只读展示本地报告。 |
 
 ## 导入与质量
 

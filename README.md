@@ -220,6 +220,18 @@ python -m ashare_alpha run-pipeline --date 2026-03-20 --data-dir data/imports/tu
 
 The runtime profile layer is also fully offline in this MVP: it does not import vendor SDKs, call external APIs, scrape websites, read real API keys, connect to brokers, or submit orders. Future real API adapters must pass through `NetworkGuard` before any network access. See `docs/SOURCE_RUNTIME_SPEC.md`.
 
+## Real Data Offline Drill
+
+`run-realdata-offline-drill` is the v0.3 rehearsal workflow for future real-data ingestion. It still uses only local offline fixtures and existing cache/materialize/import/pipeline builders; it does not fetch data, import vendor SDKs, scrape websites, connect to brokers, or place orders.
+
+```bash
+python -m ashare_alpha run-realdata-offline-drill --spec configs/ashare_alpha/realdata/tushare_like_offline_drill.yaml
+python -m ashare_alpha run-realdata-offline-drill --spec configs/ashare_alpha/realdata/akshare_like_offline_drill.yaml --format json
+python -m ashare_alpha show-realdata-drill --path outputs/realdata/<drill_id>/drill_result.json
+```
+
+Each drill writes `drill_result.json`, `drill_report.md`, and `step_summary.csv` under `outputs/realdata/{drill_id}/`, plus cache, materialized data, validation, optional quality/audit/security outputs, pipeline output, frontend, dashboard, and an experiment record. The report states the offline safety boundary clearly: research only, no automatic orders, no investment advice, and no guaranteed returns. See `docs/REAL_DATA_OFFLINE_DRILL_SPEC.md`.
+
 ## Security Layer
 
 Security defaults live in `configs/ashare_alpha/security.yaml`: offline mode is on, network access is off, broker connections are off, and live trading is off. Secrets must be referenced by environment variable name only, never written as raw API keys or tokens.
