@@ -12,6 +12,9 @@ from ashare_alpha.audit.point_in_time import (
     make_decision_time,
 )
 from ashare_alpha.data import AnnouncementEvent, DailyBar, FinancialSummary, LocalCsvAdapter, StockMaster
+from ashare_alpha.data.realism import OptionalRealismDataLoader, RealismDataBundle
+from ashare_alpha.data.realism.models import AdjustmentFactorRecord, CorporateActionRecord, StockStatusHistoryRecord
+from ashare_alpha.data.validation import DataValidationError
 
 
 class LeakageAuditor:
@@ -70,6 +73,9 @@ class LeakageAuditor:
         self._audit_financial_summary(financial_summary, issues, trade_dates)
         self._audit_announcement_events(announcement_events, issues, trade_dates)
         self._audit_daily_bars(daily_bars, issues, trade_dates)
+        realism_bundle = self._load_realism_bundle(issues)
+        if realism_bundle is not None:
+            self._audit_realism_data(realism_bundle, issues, trade_dates)
         self._audit_coverage(daily_bars, financial_summary, announcement_events, issues)
         return _report(
             audit_date=audit_date,
@@ -95,6 +101,21 @@ class LeakageAuditor:
             adapter.load_financial_summary(),
             adapter.load_announcement_events(),
         )
+
+    def _load_realism_bundle(self, issues: list[LeakageIssue]) -> RealismDataBundle | None:
+        try:
+            return OptionalRealismDataLoader(self.data_dir).load_all()
+        except DataValidationError as exc:
+            issues.append(
+                LeakageIssue(
+                    severity="warning",
+                    issue_type="realism_validation_error",
+                    dataset_name="realism",
+                    message=str(exc),
+                    recommendation="Fix optional realism CSV validation before relying on point-in-time realism audits.",
+                )
+            )
+            return None
 
     def _audit_source_version(self, issues: list[LeakageIssue]) -> None:
         if not self.source_name:
@@ -241,8 +262,8 @@ class LeakageAuditor:
                     severity="info",
                     issue_type="daily_bar_trade_date_present",
                     dataset_name="daily_bar",
-                    message="daily_bar 已通过模型校验，包含 trade_date 字段。",
-                    recommendation="继续保留 trade_date 校验作为行情可见性基础。",
+                    message="daily_bar includes trade_date for point-in-time checks.",
+                    recommendation="Keep trade_date validation as the market-data visibility baseline.",
                 )
             )
         if financial_summary:
@@ -251,8 +272,8 @@ class LeakageAuditor:
                     severity="info",
                     issue_type="financial_publish_date_present",
                     dataset_name="financial_summary",
-                    message="financial_summary 已通过模型校验，包含 publish_date 字段。",
-                    recommendation="特征构造时应使用 publish_date，而不是 report_date 判断可见性。",
+                    message="financial_summary includes publish_date for point-in-time checks.",
+                    recommendation="Use publish_date rather than report_date when deciding financial data visibility.",
                 )
             )
         if announcement_events:
@@ -261,11 +282,142 @@ class LeakageAuditor:
                     severity="info",
                     issue_type="announcement_event_time_present",
                     dataset_name="announcement_event",
-                    message="announcement_event 已通过模型校验，包含 event_time 字段。",
-                    recommendation="事件特征构造时应使用 event_time 判断可见性。",
+                    message="announcement_event includes event_time for point-in-time checks.",
+                    recommendation="Use event_time when deciding announcement event visibility.",
                 )
             )
 
+    def _audit_realism_data(
+        self,
+        bundle: RealismDataBundle,
+        issues: list[LeakageIssue],
+        trade_dates: list[date],
+    ) -> None:
+        self._audit_stock_status_history_realism(bundle.stock_status_history, issues, trade_dates)
+        self._audit_adjustment_factors_realism(bundle.adjustment_factors, issues, trade_dates)
+        self._audit_corporate_actions_realism(bundle.corporate_actions, issues, trade_dates)
+
+    def _audit_stock_status_history_realism(
+        self,
+        records: list[StockStatusHistoryRecord],
+        issues: list[LeakageIssue],
+        trade_dates: list[date],
+    ) -> None:
+        for record in records:
+            if record.available_at is None:
+                issues.append(
+                    LeakageIssue(
+                        severity="warning",
+                        issue_type="stock_status_missing_available_at",
+                        dataset_name="stock_status_history",
+                        ts_code=record.ts_code,
+                        data_date=record.effective_start,
+                        message="stock_status_history available_at is missing.",
+                        recommendation="Populate available_at so historical status is point-in-time auditable.",
+                    )
+                )
+                continue
+            for trade_date in trade_dates:
+                if not _status_effective_on(record, trade_date):
+                    continue
+                decision_time = make_decision_time(trade_date, "after_close")
+                if record.available_at > decision_time:
+                    issues.append(
+                        LeakageIssue(
+                            severity="warning",
+                            issue_type="stock_status_not_yet_available",
+                            dataset_name="stock_status_history",
+                            ts_code=record.ts_code,
+                            trade_date=trade_date,
+                            data_date=record.effective_start,
+                            available_at=record.available_at,
+                            message="stock status history row is not visible at the decision time.",
+                            recommendation="Filter status history by available_at before using it in decisions.",
+                        )
+                    )
+
+    def _audit_adjustment_factors_realism(
+        self,
+        records: list[AdjustmentFactorRecord],
+        issues: list[LeakageIssue],
+        trade_dates: list[date],
+    ) -> None:
+        for record in records:
+            if record.available_at is None:
+                issues.append(
+                    LeakageIssue(
+                        severity="warning",
+                        issue_type="adjustment_factor_missing_available_at",
+                        dataset_name="adjustment_factor",
+                        ts_code=record.ts_code,
+                        data_date=record.trade_date,
+                        message="adjustment_factor available_at is missing.",
+                        recommendation="Populate available_at so adjustment factors are point-in-time auditable.",
+                    )
+                )
+                continue
+            for trade_date in trade_dates:
+                if record.trade_date > trade_date:
+                    continue
+                decision_time = make_decision_time(trade_date, "after_close")
+                if record.available_at > decision_time:
+                    issues.append(
+                        LeakageIssue(
+                            severity="warning",
+                            issue_type="adjustment_factor_not_yet_available",
+                            dataset_name="adjustment_factor",
+                            ts_code=record.ts_code,
+                            trade_date=trade_date,
+                            data_date=record.trade_date,
+                            available_at=record.available_at,
+                            message="adjustment factor row is not visible at the decision time.",
+                            recommendation="Filter adjustment factors by available_at before adjusted-price research.",
+                        )
+                    )
+                    break
+
+    def _audit_corporate_actions_realism(
+        self,
+        records: list[CorporateActionRecord],
+        issues: list[LeakageIssue],
+        trade_dates: list[date],
+    ) -> None:
+        for record in records:
+            visible_at = record.available_at
+            if visible_at is None and record.publish_date is not None:
+                visible_at = datetime.combine(record.publish_date, datetime.min.time())
+            if visible_at is None:
+                issues.append(
+                    LeakageIssue(
+                        severity="warning",
+                        issue_type="corporate_action_missing_visible_time",
+                        dataset_name="corporate_action",
+                        ts_code=record.ts_code,
+                        data_date=record.action_date,
+                        message="corporate_action has neither available_at nor publish_date.",
+                        recommendation="Populate available_at or publish_date before using corporate actions in research.",
+                    )
+                )
+                continue
+            for trade_date in trade_dates:
+                if record.action_date > trade_date:
+                    continue
+                decision_time = make_decision_time(trade_date, "after_close")
+                if visible_at > decision_time:
+                    issues.append(
+                        LeakageIssue(
+                            severity="warning",
+                            issue_type="corporate_action_not_yet_available",
+                            dataset_name="corporate_action",
+                            ts_code=record.ts_code,
+                            trade_date=trade_date,
+                            data_date=record.action_date,
+                            available_at=visible_at,
+                            message="corporate action row is not visible at the decision time.",
+                            recommendation="Filter corporate actions by available_at or publish_date.",
+                        )
+                    )
+                    break
 
 def _audit_trade_dates(
     audit_date: date | None,
@@ -278,6 +430,10 @@ def _audit_trade_dates(
     if start_date is None or end_date is None:
         return []
     return sorted({bar.trade_date for bar in daily_bars if start_date <= bar.trade_date <= end_date})
+
+
+def _status_effective_on(record: StockStatusHistoryRecord, trade_date: date) -> bool:
+    return record.effective_start <= trade_date and (record.effective_end is None or trade_date <= record.effective_end)
 
 
 def _report(

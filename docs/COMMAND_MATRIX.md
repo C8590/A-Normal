@@ -1,7 +1,7 @@
 # Command Matrix
 
-- generated_at: 2026-05-15T18:06:22.240432
-- command_count: 49
+- generated_at: 2026-05-15T20:49:17.335281
+- command_count: 51
 
 This matrix documents local offline research commands. It does not introduce external API calls, broker integration, web scraping, or live trading.
 
@@ -18,6 +18,13 @@ This matrix documents local offline research commands. It does not introduce ext
 | --- | --- | --- | --- | --- | --- |
 | show-config | 加载并打印项目配置。 | - | `python -m ashare_alpha show-config` | stdout | 只读配置，不联网。 |
 | validate-data | 校验本地 CSV 样本数据。 | - | `python -m ashare_alpha validate-data` | stdout | 只读本地数据，不联网。 |
+
+## Basic
+
+| command | purpose | required args | common example | output location | safety note |
+| --- | --- | --- | --- | --- | --- |
+| inspect-realism-data | Inspect optional A-share data realism CSV files. | - | `python -m ashare_alpha inspect-realism-data` | stdout | Reads only local optional CSV files; no network or broker access. |
+| check-trading-calendar | Summarize open dates from optional trade_calendar.csv. | --start --end | `python -m ashare_alpha check-trading-calendar --start 2026-01-01 --end 2026-03-31` | stdout | Reads only local calendar data and does not change research logic. |
 
 ## 数据源
 
