@@ -6,6 +6,14 @@ from pathlib import Path
 from typing import Any
 
 from ashare_alpha.data import LocalCsvAdapter
+from ashare_alpha.data.realism import OptionalRealismDataLoader
+from ashare_alpha.data.realism.validation import (
+    check_adjustment_factor,
+    check_corporate_action,
+    check_stock_status_history,
+    check_trade_calendar,
+)
+from ashare_alpha.data.validation import DataValidationError
 from ashare_alpha.quality.checks import (
     check_announcement_event,
     check_cross_table_coverage,
@@ -38,6 +46,10 @@ class DataQualityReporter:
         daily_rows = _read_csv(self.data_dir / "daily_bar.csv")
         financial_rows = _read_csv(self.data_dir / "financial_summary.csv")
         announcement_rows = _read_csv(self.data_dir / "announcement_event.csv")
+        trade_calendar_rows = _read_csv(self.data_dir / "trade_calendar.csv")
+        stock_status_rows = _read_csv(self.data_dir / "stock_status_history.csv")
+        adjustment_rows = _read_csv(self.data_dir / "adjustment_factor.csv")
+        corporate_action_rows = _read_csv(self.data_dir / "corporate_action.csv")
 
         issues: list[QualityIssue] = []
         for error in validation_report.errors:
@@ -76,14 +88,37 @@ class DataQualityReporter:
                 self.target_date,
             )
         )
+        issues.extend(
+            self._realism_issues(
+                stock_rows=stock_rows,
+                daily_rows=daily_rows,
+                trade_calendar_rows=trade_calendar_rows,
+                stock_status_rows=stock_status_rows,
+                adjustment_rows=adjustment_rows,
+                corporate_action_rows=corporate_action_rows,
+            )
+        )
 
         row_counts = {
             "stock_master": len(stock_rows),
             "daily_bar": len(daily_rows),
             "financial_summary": len(financial_rows),
             "announcement_event": len(announcement_rows),
+            "trade_calendar": len(trade_calendar_rows),
+            "stock_status_history": len(stock_status_rows),
+            "adjustment_factor": len(adjustment_rows),
+            "corporate_action": len(corporate_action_rows),
         }
-        coverage = _coverage(stock_rows, daily_rows, financial_rows, announcement_rows)
+        coverage = _coverage(
+            stock_rows,
+            daily_rows,
+            financial_rows,
+            announcement_rows,
+            trade_calendar_rows,
+            stock_status_rows,
+            adjustment_rows,
+            corporate_action_rows,
+        )
         error_count = sum(1 for issue in issues if issue.severity == "error")
         warning_count = sum(1 for issue in issues if issue.severity == "warning")
         info_count = sum(1 for issue in issues if issue.severity == "info")
@@ -107,6 +142,39 @@ class DataQualityReporter:
             summary=summary,
         )
 
+    def _realism_issues(
+        self,
+        stock_rows: list[dict[str, str]],
+        daily_rows: list[dict[str, str]],
+        trade_calendar_rows: list[dict[str, str]],
+        stock_status_rows: list[dict[str, str]],
+        adjustment_rows: list[dict[str, str]],
+        corporate_action_rows: list[dict[str, str]],
+    ) -> list[QualityIssue]:
+        issues: list[QualityIssue] = []
+        try:
+            OptionalRealismDataLoader(self.data_dir).load_all()
+        except DataValidationError as exc:
+            issues.append(
+                QualityIssue(
+                    severity="error",
+                    dataset_name="realism",
+                    issue_type="realism_validation_error",
+                    message=str(exc),
+                    recommendation="Fix optional realism CSV schema or row values before using realism checks.",
+                )
+            )
+
+        if trade_calendar_rows:
+            issues.extend(check_trade_calendar(trade_calendar_rows))
+        if stock_status_rows:
+            issues.extend(check_stock_status_history(stock_status_rows, stock_rows, self.target_date))
+        if adjustment_rows:
+            issues.extend(check_adjustment_factor(adjustment_rows, stock_rows, daily_rows))
+        if corporate_action_rows:
+            issues.extend(check_corporate_action(corporate_action_rows, stock_rows))
+        return issues
+
 
 def _read_csv(path: Path) -> list[dict[str, str]]:
     if not path.exists() or not path.is_file():
@@ -123,8 +191,15 @@ def _coverage(
     daily_rows: list[dict[str, str]],
     financial_rows: list[dict[str, str]],
     announcement_rows: list[dict[str, str]],
+    trade_calendar_rows: list[dict[str, str]] | None = None,
+    stock_status_rows: list[dict[str, str]] | None = None,
+    adjustment_rows: list[dict[str, str]] | None = None,
+    corporate_action_rows: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     daily_dates = sorted({item for item in (_parse_date(row.get("trade_date")) for row in daily_rows) if item})
+    calendar_dates = sorted(
+        {item for item in (_parse_date(row.get("calendar_date")) for row in trade_calendar_rows or []) if item}
+    )
     return {
         "stock_count": len(stock_rows),
         "daily_bar_rows": len(daily_rows),
@@ -135,6 +210,11 @@ def _coverage(
         "stocks_with_daily_bar": len({row.get("ts_code", "").strip() for row in daily_rows if row.get("ts_code", "").strip()}),
         "stocks_with_financial_summary": len({row.get("ts_code", "").strip() for row in financial_rows if row.get("ts_code", "").strip()}),
         "stocks_with_announcement_event": len({row.get("ts_code", "").strip() for row in announcement_rows if row.get("ts_code", "").strip()}),
+        "trade_calendar_min_date": calendar_dates[0].isoformat() if calendar_dates else None,
+        "trade_calendar_max_date": calendar_dates[-1].isoformat() if calendar_dates else None,
+        "stock_status_history_rows": len(stock_status_rows or []),
+        "adjustment_factor_rows": len(adjustment_rows or []),
+        "corporate_action_rows": len(corporate_action_rows or []),
     }
 
 

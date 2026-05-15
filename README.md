@@ -128,6 +128,28 @@ python -m ashare_alpha validate-data --format json
 
 The data layer currently supports local CSV only. Future data adapters can be added behind the `DataAdapter` interface without changing downstream modules.
 
+### Optional Data Realism CSVs
+
+The `v0.4.0-data-quality-realism` stage adds optional local CSV files for A-share data realism:
+
+- `trade_calendar.csv`
+- `stock_status_history.csv`
+- `adjustment_factor.csv`
+- `corporate_action.csv`
+
+These files model trading calendars, historical ST / suspension / board / industry / listing states, adjustment factors, and corporate actions. They are optional: the four required CSVs above remain the only mandatory inputs for `validate-data` and `run-pipeline`.
+
+Inspect the optional realism layer:
+
+```bash
+python -m ashare_alpha inspect-realism-data
+python -m ashare_alpha inspect-realism-data --format json
+python -m ashare_alpha check-trading-calendar --start 2026-01-01 --end 2026-03-31
+python -m ashare_alpha check-trading-calendar --start 2026-01-01 --end 2026-03-31 --format json
+```
+
+When present, the optional files enhance `quality-report` and `audit-leakage`; they do not change strategy, backtest, signal, or probability model logic. See `docs/DATA_REALISM_SPEC.md`.
+
 Inspect registered data source metadata:
 
 ```bash

@@ -5,7 +5,7 @@ import csv
 import json
 import sys
 from dataclasses import fields
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import ashare_alpha as ashare_alpha_package
@@ -56,6 +56,7 @@ from ashare_alpha.data.contracts import (
     save_contract_report_md,
     save_conversion_result_json,
 )
+from ashare_alpha.data.realism import OptionalRealismDataLoader, TradingCalendar
 from ashare_alpha.data.runtime import SourceMaterializer, SourceProfile, SourceRuntimeContext
 from ashare_alpha.events import EventFeatureBuilder, save_event_daily_csv, summarize_event_daily
 from ashare_alpha.experiments import (
@@ -172,6 +173,45 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output format. Default: text.",
     )
     validate_data_parser.set_defaults(handler=_cmd_validate_data)
+
+    inspect_realism_parser = subparsers.add_parser(
+        "inspect-realism-data",
+        help="Inspect optional A-share data realism CSV files.",
+    )
+    inspect_realism_parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=DEFAULT_DATA_DIR,
+        help="Directory containing local CSV files. Defaults to data/sample/ashare_alpha/.",
+    )
+    inspect_realism_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format. Default: text.",
+    )
+    inspect_realism_parser.set_defaults(handler=_cmd_inspect_realism_data)
+
+    check_calendar_parser = subparsers.add_parser(
+        "check-trading-calendar",
+        help="Inspect open dates from optional trade_calendar.csv.",
+    )
+    check_calendar_parser.add_argument("--start", required=True, help="Start date in YYYY-MM-DD format.")
+    check_calendar_parser.add_argument("--end", required=True, help="End date in YYYY-MM-DD format.")
+    check_calendar_parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=DEFAULT_DATA_DIR,
+        help="Directory containing local CSV files. Defaults to data/sample/ashare_alpha/.",
+    )
+    check_calendar_parser.add_argument("--exchange", default="all", help="Exchange code. Default: all.")
+    check_calendar_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format. Default: text.",
+    )
+    check_calendar_parser.set_defaults(handler=_cmd_check_trading_calendar)
 
     list_sources_parser = subparsers.add_parser("list-data-sources", help="List registered data sources.")
     list_sources_parser.add_argument(
@@ -1644,6 +1684,90 @@ def _cmd_validate_data(args: argparse.Namespace) -> int:
     return 0 if report.passed else 1
 
 
+def _cmd_inspect_realism_data(args: argparse.Namespace) -> int:
+    loader = OptionalRealismDataLoader(args.data_dir)
+    bundle = loader.load_all()
+    files = {
+        filename: (args.data_dir / filename).exists()
+        for filename in OptionalRealismDataLoader.FILES.values()
+    }
+    calendar_dates = [item.calendar_date for item in bundle.trade_calendar]
+    adjustment_codes = {item.ts_code for item in bundle.adjustment_factors}
+    payload = {
+        "data_dir": str(args.data_dir),
+        "optional_files": files,
+        "rows": {
+            "trade_calendar": len(bundle.trade_calendar),
+            "stock_status_history": len(bundle.stock_status_history),
+            "adjustment_factor": len(bundle.adjustment_factors),
+            "corporate_action": len(bundle.corporate_actions),
+        },
+        "missing_optional_files": bundle.missing_optional_files,
+        "coverage": {
+            "trade_calendar_min_date": min(calendar_dates).isoformat() if calendar_dates else None,
+            "trade_calendar_max_date": max(calendar_dates).isoformat() if calendar_dates else None,
+            "status_stock_count": len({item.ts_code for item in bundle.stock_status_history}),
+            "adjustment_stock_count": len(adjustment_codes),
+            "corporate_action_stock_count": len({item.ts_code for item in bundle.corporate_actions}),
+        },
+    }
+    if args.format == "json":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(f"Realism data: {args.data_dir}")
+        print("Optional files:")
+        for filename, exists in files.items():
+            print(f"  {filename}: {'present' if exists else 'missing'}")
+        print("Rows:")
+        for table_name, row_count in payload["rows"].items():
+            print(f"  {table_name}: {row_count}")
+        print("Missing optional files:")
+        if bundle.missing_optional_files:
+            for filename in bundle.missing_optional_files:
+                print(f"  - {filename}")
+        else:
+            print("  - none")
+        print("Coverage:")
+        for key, value in payload["coverage"].items():
+            print(f"  {key}: {value}")
+    return 0
+
+
+def _cmd_check_trading_calendar(args: argparse.Namespace) -> int:
+    start = _parse_date(args.start)
+    end = _parse_date(args.end)
+    if start > end:
+        raise ValueError("start must be earlier than or equal to end.")
+    bundle = OptionalRealismDataLoader(args.data_dir).load_all()
+    calendar = TradingCalendar(bundle.trade_calendar)
+    open_dates = calendar.open_dates(start, end, args.exchange)
+    calendar_dates = {
+        item.calendar_date
+        for item in bundle.trade_calendar
+        if item.exchange == args.exchange or item.exchange == "all"
+    }
+    missing_status_count = sum(1 for item in _natural_dates(start, end) if item not in calendar_dates)
+    payload = {
+        "data_dir": str(args.data_dir),
+        "exchange": args.exchange,
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "open_dates_count": len(open_dates),
+        "first_open_date": open_dates[0].isoformat() if open_dates else None,
+        "last_open_date": open_dates[-1].isoformat() if open_dates else None,
+        "missing_calendar_status_count": missing_status_count,
+    }
+    if args.format == "json":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(f"Trading calendar: {args.exchange} {start.isoformat()} to {end.isoformat()}")
+        print(f"Open dates: {payload['open_dates_count']}")
+        print(f"First open date: {payload['first_open_date']}")
+        print(f"Last open date: {payload['last_open_date']}")
+        print(f"Missing calendar status: {payload['missing_calendar_status_count']}")
+    return 0
+
+
 def _cmd_list_data_sources(args: argparse.Namespace) -> int:
     sources = get_default_data_source_registry().list_sources()
     security_config = load_project_config(_default_config_dir()).security
@@ -2957,6 +3081,10 @@ def _parse_date(value: str) -> date:
         return date.fromisoformat(value)
     except ValueError as exc:
         raise ValueError(f"Invalid date '{value}'. Expected YYYY-MM-DD.") from exc
+
+
+def _natural_dates(start: date, end: date) -> list[date]:
+    return [start + timedelta(days=offset) for offset in range((end - start).days + 1)]
 
 
 def _print_validation_failure(report, output_format: str) -> None:

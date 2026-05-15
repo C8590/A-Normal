@@ -35,6 +35,8 @@ def test_command_matrix_contains_key_commands() -> None:
         "materialize-cache",
         "build-frontend",
         "serve-frontend",
+        "inspect-realism-data",
+        "check-trading-calendar",
     ):
         assert command in commands
 
@@ -48,3 +50,5 @@ def test_command_matrix_docs_exist() -> None:
     assert "build-frontend" in text
     assert "serve-frontend" in text
     assert "run-pipeline" in text
+    assert "inspect-realism-data" in text
+    assert "check-trading-calendar" in text

@@ -1,0 +1,14 @@
+ts_code,effective_start,effective_end,board,industry,is_st,is_star_st,is_suspended,is_delisting_risk,listing_status,source_name,available_at,notes
+600001.SH,2026-01-01,,main,industrial,false,false,false,false,listed,sample,2025-12-31T18:00:00,normal main-board history
+600002.SH,2026-01-01,,main,consumer,false,false,false,false,listed,sample,2025-12-31T18:00:00,normal main-board history
+000001.SZ,2026-01-01,,main,finance,false,false,false,false,listed,sample,2025-12-31T18:00:00,normal Shenzhen main-board history
+600003.SH,2026-01-01,,main,materials,true,false,false,false,listed,sample,2025-12-31T18:00:00,ST historical status
+600004.SH,2026-01-01,,main,retail,false,true,false,false,listed,sample,2025-12-31T18:00:00,*ST historical status
+300001.SZ,2026-01-01,,chinext,software,false,false,false,false,listed,sample,2025-12-31T18:00:00,ChiNext board history
+688001.SH,2026-01-01,,star,semiconductor,false,false,false,false,listed,sample,2025-12-31T18:00:00,STAR board history
+920001.BJ,2026-01-01,,bse,equipment,false,false,false,false,listed,sample,2025-12-31T18:00:00,BSE board history
+600005.SH,2026-01-01,2026-03-09,main,energy,false,false,false,false,listed,sample,2025-12-31T18:00:00,normal before suspension
+600005.SH,2026-03-10,,main,energy,false,false,true,false,suspended,sample,2026-03-09T18:00:00,suspension starts
+600006.SH,2026-01-01,,main,real_estate,false,false,false,true,delisting_risk,sample,2025-12-31T18:00:00,delisting-risk status
+001001.SZ,2026-02-18,,main,healthcare,false,false,false,false,listed,sample,2026-02-17T18:00:00,new listing sample
+603999.SH,2026-01-01,,main,advanced_manufacturing,false,false,false,false,listed,sample,2025-12-31T18:00:00,normal main-board history

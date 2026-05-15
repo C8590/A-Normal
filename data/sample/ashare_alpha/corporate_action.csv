@@ -1,0 +1,4 @@
+ts_code,action_date,ex_date,record_date,publish_date,action_type,cash_dividend,bonus_share_ratio,transfer_share_ratio,rights_issue_ratio,source_name,available_at,notes
+600001.SH,2026-02-20,2026-02-23,2026-02-19,2026-02-18,dividend,0.18,,,,sample,2026-02-18T18:00:00,cash dividend sample
+600002.SH,2026-03-06,2026-03-09,2026-03-05,2026-03-04,bonus_share,,0.2,,,sample,2026-03-04T18:00:00,bonus share sample
+603999.SH,2026-03-18,,,2026-03-17,other,,,,,sample,2026-03-17T18:00:00,other corporate event sample
