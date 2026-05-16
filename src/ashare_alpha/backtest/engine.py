@@ -9,8 +9,10 @@ from ashare_alpha.backtest.cost_model import CostModel
 from ashare_alpha.backtest.metrics import calculate_metrics
 from ashare_alpha.backtest.models import BacktestResult, DailyEquityRecord, SimulatedOrder, SimulatedTrade
 from ashare_alpha.backtest.portfolio import Portfolio
+from ashare_alpha.backtest.price_source import BacktestPriceSourceProvider
 from ashare_alpha.config import ProjectConfig
 from ashare_alpha.data import AnnouncementEvent, DailyBar, FinancialSummary, StockMaster
+from ashare_alpha.data.realism.models import AdjustmentFactorRecord, CorporateActionRecord
 from ashare_alpha.events import EventFeatureBuilder
 from ashare_alpha.factors import FactorBuilder
 from ashare_alpha.signals import SignalDailyRecord, SignalGenerator
@@ -49,13 +51,30 @@ class BacktestEngine:
         daily_bars: list[DailyBar],
         financial_summary: list[FinancialSummary],
         announcement_events: list[AnnouncementEvent],
+        price_source: str = "raw",
+        adjustment_factors: list[AdjustmentFactorRecord] | None = None,
+        corporate_actions: list[CorporateActionRecord] | None = None,
     ) -> None:
+        if price_source not in config.backtest.price_source.allowed:
+            raise ValueError(f"price_source must be one of: {', '.join(config.backtest.price_source.allowed)}")
+        if config.backtest.adjusted_backtest.use_adjusted_for_trade_price:
+            raise ValueError("use_adjusted_for_trade_price=true is not supported; execution price source must stay raw")
+        if not config.backtest.adjusted_backtest.keep_raw_execution_constraints:
+            raise ValueError("keep_raw_execution_constraints must be true")
         self.config = config
         self.stock_master = stock_master
         self.daily_bars = daily_bars
         self.financial_summary = financial_summary
         self.announcement_events = announcement_events
+        self.price_source = price_source
         self._bars_by_date_code = {(bar.trade_date, bar.ts_code): bar for bar in daily_bars}
+        self.price_provider = BacktestPriceSourceProvider(
+            daily_bars=daily_bars,
+            adjustment_factors=adjustment_factors,
+            corporate_actions=corporate_actions,
+            price_source=price_source,
+        )
+        self.valuation_warnings: list[str] = []
 
     def run(self, start_date: date, end_date: date) -> BacktestResult:
         if start_date >= end_date:
@@ -67,7 +86,7 @@ class BacktestEngine:
         rebalance_dates = set(select_rebalance_dates(trading_dates, self.config.backtest.rebalance_frequency))
         portfolio = Portfolio(self.config.backtest.initial_cash, self.config.trading_rules)
         cost_model = CostModel(self.config)
-        broker = BrokerSimulator(self.config, cost_model, portfolio)
+        broker = BrokerSimulator(self.config, cost_model, portfolio, price_source=self.price_source)
         trades: list[SimulatedTrade] = []
         daily_equity: list[DailyEquityRecord] = []
         pending_orders: list[SimulatedOrder] = []
@@ -79,9 +98,9 @@ class BacktestEngine:
             todays_orders = [order for order in pending_orders if order.execution_date == trade_date]
             pending_orders = [order for order in pending_orders if order.execution_date != trade_date]
             for order in sorted(todays_orders, key=lambda item: 0 if item.side == "SELL" else 1):
-                trades.append(broker.execute_order(order, self._bars_by_date_code.get((trade_date, order.ts_code))))
+                trades.append(broker.execute_order(order, self.price_provider.get_execution_bar(order.ts_code, trade_date)))
 
-            self._update_last_prices(trade_date, last_price_map)
+            valuation_basis = self._update_last_prices(trade_date, last_price_map, set(portfolio.lots_by_symbol))
             snapshots = portfolio.mark_to_market(trade_date, last_price_map)
             market_value = sum(snapshot.market_value for snapshot in snapshots)
             total_equity = portfolio.cash + market_value
@@ -98,6 +117,8 @@ class BacktestEngine:
                     gross_exposure=market_value / total_equity if total_equity > 0 else 0.0,
                     daily_return=daily_return,
                     drawdown=drawdown,
+                    price_source=self.price_source,
+                    valuation_basis=valuation_basis,
                 )
             )
             previous_equity = total_equity
@@ -112,8 +133,15 @@ class BacktestEngine:
             trades=trades,
             initial_cash=self.config.backtest.initial_cash,
             annualization_days=self.config.backtest.metrics.annualization_days,
+            price_source=self.price_source,
         )
-        return BacktestResult(metrics=metrics, trades=trades, daily_equity=daily_equity)
+        return BacktestResult(
+            metrics=metrics,
+            trades=trades,
+            daily_equity=daily_equity,
+            price_source=self.price_source,
+            valuation_warnings=list(self.valuation_warnings),
+        )
 
     def _generate_signals(self, decision_date: date) -> list[SignalDailyRecord]:
         universe_records = UniverseBuilder(
@@ -156,10 +184,9 @@ class BacktestEngine:
         for signal in signals:
             current_shares = portfolio.get_total_shares(signal.ts_code)
             target_weight = self._target_weight(signal, current_shares)
-            bar = self._bars_by_date_code.get((execution_date, signal.ts_code))
-            execution_price = bar.open if bar is not None else None
-            target_shares = self._target_shares(current_equity, target_weight, execution_price)
-            if target_weight > 0 and execution_price is not None and target_shares * execution_price < self.config.backtest.min_position_value:
+            target_price = self._target_position_price(signal.ts_code, execution_date)
+            target_shares = self._target_shares(current_equity, target_weight, target_price)
+            if target_weight > 0 and target_price is not None and target_shares * target_price < self.config.backtest.min_position_value:
                 target_shares = 0
             if target_shares < current_shares:
                 orders.append(
@@ -222,7 +249,32 @@ class BacktestEngine:
         raw_shares = equity * min(target_weight, self.config.backtest.max_position_weight) / execution_price
         return math.floor(raw_shares / lot_size) * lot_size
 
-    def _update_last_prices(self, trade_date: date, last_price_map: dict[str, float]) -> None:
+    def _update_last_prices(self, trade_date: date, last_price_map: dict[str, float], held_codes: set[str]) -> str:
+        basis = "raw_close" if self.price_source == "raw" else f"{self.price_source}_adjusted_close"
+        fallback_codes: list[str] = []
         for bar in self.daily_bars:
             if bar.trade_date == trade_date and bar.is_trading:
-                last_price_map[bar.ts_code] = bar.close
+                valuation_price = self.price_provider.get_valuation_price(bar.ts_code, trade_date)
+                if valuation_price is None:
+                    valuation_price = bar.close
+                    if bar.ts_code in held_codes:
+                        fallback_codes.append(bar.ts_code)
+                last_price_map[bar.ts_code] = valuation_price
+        if fallback_codes:
+            warning = (
+                f"ADJUSTED_VALUATION_FALLBACK_RAW {trade_date.isoformat()} "
+                f"{','.join(sorted(set(fallback_codes)))}"
+            )
+            self.valuation_warnings.append(warning)
+            basis = f"{basis}; {warning}"
+        return basis
+
+    def _target_position_price(self, ts_code: str, trade_date: date) -> float | None:
+        target_price = self.price_provider.get_target_position_price(ts_code, trade_date)
+        if target_price is not None:
+            return target_price
+        if self.price_source != "raw":
+            self.valuation_warnings.append(
+                f"ADJUSTED_TARGET_POSITION_PRICE_UNAVAILABLE {trade_date.isoformat()} {ts_code}"
+            )
+        return None

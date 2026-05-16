@@ -10,6 +10,7 @@ def calculate_metrics(
     trades: list[SimulatedTrade],
     initial_cash: float,
     annualization_days: int,
+    price_source: str = "raw",
 ) -> BacktestMetrics:
     if not daily_equity:
         raise ValueError("daily_equity must not be empty")
@@ -44,6 +45,7 @@ def calculate_metrics(
         filled_trade_count=sum(1 for trade in trades if trade.status == "FILLED"),
         rejected_trade_count=sum(1 for trade in trades if trade.status == "REJECTED"),
         average_holding_days=average_holding_days,
+        price_source=price_source,
     )
 
 

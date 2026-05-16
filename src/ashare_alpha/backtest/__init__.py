@@ -15,6 +15,7 @@ from ashare_alpha.backtest.models import (
     TradeCost,
 )
 from ashare_alpha.backtest.portfolio import Portfolio
+from ashare_alpha.backtest.price_source import BacktestPriceSourceProvider
 from ashare_alpha.backtest.storage import (
     save_backtest_summary_md,
     save_daily_equity_csv,
@@ -26,6 +27,7 @@ __all__ = [
     "BacktestEngine",
     "BacktestMetrics",
     "BacktestResult",
+    "BacktestPriceSourceProvider",
     "BrokerSimulator",
     "CostModel",
     "DailyEquityRecord",

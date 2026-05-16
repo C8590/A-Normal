@@ -171,6 +171,32 @@ class ScoringConfig(StrictConfigModel):
         return self
 
 
+class BacktestPriceSourceConfig(StrictConfigModel):
+    default: Literal["raw", "qfq", "hfq"] = "raw"
+    allowed: tuple[Literal["raw", "qfq", "hfq"], ...] = ("raw", "qfq", "hfq")
+
+    @model_validator(mode="after")
+    def validate_allowed_sources(self) -> BacktestPriceSourceConfig:
+        if "raw" not in self.allowed:
+            raise ValueError("backtest.price_source.allowed must include raw")
+        if self.default not in self.allowed:
+            raise ValueError("backtest.price_source.default must be listed in allowed")
+        return self
+
+
+class BacktestAdjustedConfig(StrictConfigModel):
+    use_adjusted_for_valuation: bool = False
+    use_adjusted_for_target_position: bool = False
+    use_adjusted_for_trade_price: bool = False
+    keep_raw_execution_constraints: bool = True
+
+    @model_validator(mode="after")
+    def validate_adjusted_backtest_scope(self) -> BacktestAdjustedConfig:
+        if not self.keep_raw_execution_constraints:
+            raise ValueError("backtest.adjusted_backtest.keep_raw_execution_constraints must be true")
+        return self
+
+
 class BacktestConfig(StrictConfigModel):
     initial_cash: float = Field(gt=0)
     max_positions: int = Field(ge=1)
@@ -182,6 +208,8 @@ class BacktestConfig(StrictConfigModel):
     benchmark: str | None
     save_trades: bool
     save_daily_equity: bool
+    price_source: BacktestPriceSourceConfig = Field(default_factory=BacktestPriceSourceConfig)
+    adjusted_backtest: BacktestAdjustedConfig = Field(default_factory=BacktestAdjustedConfig)
     execution: BacktestExecutionConfig
     metrics: BacktestMetricsConfig
 

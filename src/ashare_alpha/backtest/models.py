@@ -4,6 +4,14 @@ from dataclasses import dataclass, field
 from datetime import date
 
 
+PRICE_SOURCES = {"raw", "qfq", "hfq"}
+
+
+def validate_backtest_price_source(value: str, field_name: str = "price_source") -> None:
+    if value not in PRICE_SOURCES:
+        raise ValueError(f"{field_name} must be one of raw, qfq, hfq")
+
+
 @dataclass(frozen=True)
 class TradeCost:
     gross_value: float
@@ -55,10 +63,18 @@ class SimulatedTrade:
     realized_pnl: float | None
     holding_days: int | None
     reason: str
+    price_source: str = "raw"
+    execution_price_source: str = "raw"
+    valuation_price_source: str = "raw"
 
     def __post_init__(self) -> None:
         if self.status not in {"FILLED", "REJECTED", "PARTIAL"}:
             raise ValueError("status must be FILLED, REJECTED, or PARTIAL")
+        validate_backtest_price_source(self.price_source)
+        validate_backtest_price_source(self.execution_price_source, "execution_price_source")
+        validate_backtest_price_source(self.valuation_price_source, "valuation_price_source")
+        if self.execution_price_source != "raw":
+            raise ValueError("execution_price_source must be raw in the first adjusted backtest release")
 
 
 @dataclass
@@ -91,6 +107,11 @@ class DailyEquityRecord:
     gross_exposure: float
     daily_return: float
     drawdown: float
+    price_source: str = "raw"
+    valuation_basis: str | None = None
+
+    def __post_init__(self) -> None:
+        validate_backtest_price_source(self.price_source)
 
 
 @dataclass(frozen=True)
@@ -109,6 +130,10 @@ class BacktestMetrics:
     filled_trade_count: int
     rejected_trade_count: int
     average_holding_days: float | None
+    price_source: str = "raw"
+
+    def __post_init__(self) -> None:
+        validate_backtest_price_source(self.price_source)
 
 
 @dataclass(frozen=True)
@@ -116,3 +141,8 @@ class BacktestResult:
     metrics: BacktestMetrics
     trades: list[SimulatedTrade] = field(default_factory=list)
     daily_equity: list[DailyEquityRecord] = field(default_factory=list)
+    price_source: str = "raw"
+    valuation_warnings: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        validate_backtest_price_source(self.price_source)

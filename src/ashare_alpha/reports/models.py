@@ -105,6 +105,12 @@ class BacktestResearchReport(ReportModel):
     filled_trade_count: int = Field(ge=0)
     rejected_trade_count: int = Field(ge=0)
     average_holding_days: float | None
+    price_source: str = "raw"
+    execution_price_source: str = "raw"
+    valuation_price_source: str = "raw"
+    adjusted_research_note: str = (
+        "Adjusted valuation is for research only; execution constraints remain based on raw daily bars."
+    )
 
     no_trade: bool
     no_trade_reason: str | None = None

@@ -8,6 +8,17 @@ end_date: null
 benchmark: null
 save_trades: true
 save_daily_equity: true
+price_source:
+  default: raw
+  allowed:
+  - raw
+  - qfq
+  - hfq
+adjusted_backtest:
+  use_adjusted_for_valuation: false
+  use_adjusted_for_target_position: false
+  use_adjusted_for_trade_price: false
+  keep_raw_execution_constraints: true
 execution:
   signal_timing: after_close
   execution_price: next_open
