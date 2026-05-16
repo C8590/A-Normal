@@ -398,9 +398,12 @@ Run the sample backtest:
 python -m ashare_alpha run-backtest --start 2026-01-05 --end 2026-03-20
 python -m ashare_alpha run-backtest --start 2026-01-05 --end 2026-03-20 --format json
 python -m ashare_alpha run-backtest --start 2026-01-05 --end 2026-03-20 --output-dir outputs/backtests/test
+python -m ashare_alpha run-backtest --start 2026-01-05 --end 2026-03-20 --price-source qfq
+python -m ashare_alpha run-backtest --start 2026-01-05 --end 2026-03-20 --price-source hfq
+python -m ashare_alpha compare-backtest-price-sources --start 2026-01-05 --end 2026-03-20 --left raw --right qfq
 ```
 
-Outputs are written under `outputs/backtests/backtest_START_END/`: `trades.csv`, `daily_equity.csv`, `metrics.json`, and `summary.md`. The backtest is offline simulation only; it does not submit real orders.
+Outputs are written under `outputs/backtests/backtest_START_END/` for raw and `outputs/backtests/backtest_START_END_qfq/` or `_hfq/` for adjusted research valuation runs: `trades.csv`, `daily_equity.csv`, `metrics.json`, and `summary.md`. `--price-source` defaults to `raw`; qfq/hfq only affect research valuation and target-position estimation, while execution constraints, limit-up/limit-down checks, suspension, costs, and T+1 remain based on raw daily bars. The backtest is offline simulation only; it does not submit real orders. See `docs/ADJUSTED_BACKTEST_SPEC.md`.
 
 ## Research Reports
 

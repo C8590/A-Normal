@@ -8,10 +8,17 @@ from ashare_alpha.data import DailyBar
 
 
 class BrokerSimulator:
-    def __init__(self, config: ProjectConfig, cost_model: CostModel, portfolio: Portfolio) -> None:
+    def __init__(
+        self,
+        config: ProjectConfig,
+        cost_model: CostModel,
+        portfolio: Portfolio,
+        price_source: str = "raw",
+    ) -> None:
         self.config = config
         self.cost_model = cost_model
         self.portfolio = portfolio
+        self.price_source = price_source
 
     def execute_order(self, order: SimulatedOrder, execution_bar: DailyBar | None) -> SimulatedTrade:
         if execution_bar is None:
@@ -62,6 +69,9 @@ class BrokerSimulator:
             realized_pnl=realized_pnl,
             holding_days=holding_days,
             reason=order.reason,
+            price_source=self.price_source,
+            execution_price_source="raw",
+            valuation_price_source=self.price_source,
         )
 
     def _execution_price(self, bar: DailyBar) -> float:
@@ -83,8 +93,7 @@ class BrokerSimulator:
             and price <= bar.limit_down + self.config.trading_rules.price_tick / 2
         )
 
-    @staticmethod
-    def _rejected(order: SimulatedOrder, reason: str) -> SimulatedTrade:
+    def _rejected(self, order: SimulatedOrder, reason: str) -> SimulatedTrade:
         return SimulatedTrade(
             decision_date=order.decision_date,
             execution_date=order.execution_date,
@@ -104,4 +113,7 @@ class BrokerSimulator:
             realized_pnl=None,
             holding_days=None,
             reason=order.reason,
+            price_source=self.price_source,
+            execution_price_source="raw",
+            valuation_price_source=self.price_source,
         )

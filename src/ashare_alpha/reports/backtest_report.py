@@ -36,6 +36,12 @@ class BacktestReportBuilder:
             filled_trade_count=metrics.filled_trade_count,
             rejected_trade_count=metrics.rejected_trade_count,
             average_holding_days=metrics.average_holding_days,
+            price_source=metrics.price_source,
+            execution_price_source="raw",
+            valuation_price_source=metrics.price_source,
+            adjusted_research_note=(
+                "Adjusted valuation is for research only; execution constraints remain based on raw daily bars."
+            ),
             no_trade=metrics.filled_trade_count == 0,
             no_trade_reason=self._no_trade_reason(top_reject_reasons),
             top_reject_reasons=top_reject_reasons,

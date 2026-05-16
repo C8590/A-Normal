@@ -1,7 +1,7 @@
 # Command Matrix
 
-- generated_at: 2026-05-16T14:02:19.958323
-- command_count: 53
+- generated_at: 2026-05-16T17:56:50.828365
+- command_count: 54
 
 This matrix documents local offline research commands. It does not introduce external API calls, broker integration, web scraping, or live trading.
 
@@ -70,7 +70,8 @@ This matrix documents local offline research commands. It does not introduce ext
 
 | command | purpose | required args | common example | output location | safety note |
 | --- | --- | --- | --- | --- | --- |
-| run-backtest | 运行本地研究回测。 | --start --end | `python -m ashare_alpha run-backtest --start 2026-01-05 --end 2026-03-20` | outputs/backtests/... | 模拟回测，不实盘。 |
+| run-backtest | Run local research backtest with optional raw/qfq/hfq valuation price source. | --start --end | `python -m ashare_alpha run-backtest --start 2026-01-05 --end 2026-03-20 --price-source qfq` | outputs/backtests/... | Default remains raw; execution constraints use raw daily bars; no broker connection or live orders. |
+| compare-backtest-price-sources | Compare two backtest valuation price sources such as raw vs qfq. | --start --end | `python -m ashare_alpha compare-backtest-price-sources --start 2026-01-05 --end 2026-03-20 --left raw --right qfq` | outputs/backtests/compare_... | Research comparison only; execution constraints stay raw; no automatic orders. |
 | daily-report | 生成日度研究报告。 | --date | `python -m ashare_alpha daily-report --date 2026-03-20` | outputs/reports/... | 研究报告，不构成投资建议。 |
 | backtest-report | 渲染回测报告。 | --backtest-dir | `python -m ashare_alpha backtest-report --backtest-dir outputs/backtests/backtest_2026-01-05_2026-03-20` | outputs/reports/... | 只读回测产物。 |
 

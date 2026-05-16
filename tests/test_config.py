@@ -105,6 +105,26 @@ def test_factor_price_source_config_requires_default_in_allowed(tmp_path):
         load_project_config(config_dir)
 
 
+def test_backtest_price_source_config_requires_raw_in_allowed(tmp_path):
+    config_dir = copy_ashare_alpha_config(tmp_path)
+    backtest = yaml.safe_load((config_dir / "backtest.yaml").read_text(encoding="utf-8"))
+    backtest["price_source"]["allowed"] = ["qfq", "hfq"]
+    write_yaml(config_dir / "backtest.yaml", backtest)
+
+    with pytest.raises(ConfigValidationError, match="allowed must include raw"):
+        load_project_config(config_dir)
+
+
+def test_backtest_adjusted_config_requires_raw_execution_constraints(tmp_path):
+    config_dir = copy_ashare_alpha_config(tmp_path)
+    backtest = yaml.safe_load((config_dir / "backtest.yaml").read_text(encoding="utf-8"))
+    backtest["adjusted_backtest"]["keep_raw_execution_constraints"] = False
+    write_yaml(config_dir / "backtest.yaml", backtest)
+
+    with pytest.raises(ConfigValidationError, match="keep_raw_execution_constraints"):
+        load_project_config(config_dir)
+
+
 def test_ashare_alpha_missing_config_file_raises_clear_error(tmp_path):
     config_dir = copy_ashare_alpha_config(tmp_path)
     (config_dir / "fees.yaml").unlink()

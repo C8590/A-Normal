@@ -793,7 +793,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--output-dir",
         type=Path,
         default=None,
-        help="Output directory. Defaults to outputs/backtests/backtest_START_END/.",
+        help="Output directory. Defaults to outputs/backtests/backtest_START_END[_PRICE_SOURCE]/.",
+    )
+    run_backtest_parser.add_argument(
+        "--price-source",
+        choices=["raw", "qfq", "hfq"],
+        default="raw",
+        help="Backtest valuation price source. Default: raw.",
     )
     run_backtest_parser.add_argument(
         "--format",
@@ -815,6 +821,50 @@ def build_parser() -> argparse.ArgumentParser:
         help="Experiment registry directory. Default: outputs/experiments.",
     )
     run_backtest_parser.set_defaults(handler=_cmd_run_backtest)
+
+    compare_backtest_parser = subparsers.add_parser(
+        "compare-backtest-price-sources",
+        help="Compare two offline backtests using different valuation price sources.",
+    )
+    compare_backtest_parser.add_argument("--start", required=True, help="Start date in YYYY-MM-DD format.")
+    compare_backtest_parser.add_argument("--end", required=True, help="End date in YYYY-MM-DD format.")
+    compare_backtest_parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=DEFAULT_DATA_DIR,
+        help="Directory containing local CSV files. Defaults to data/sample/ashare_alpha/.",
+    )
+    compare_backtest_parser.add_argument(
+        "--config-dir",
+        type=Path,
+        default=None,
+        help="Directory containing ashare_alpha YAML configs. Defaults to configs/ashare_alpha/.",
+    )
+    compare_backtest_parser.add_argument(
+        "--left",
+        choices=["raw", "qfq", "hfq"],
+        default="raw",
+        help="Left valuation price source. Default: raw.",
+    )
+    compare_backtest_parser.add_argument(
+        "--right",
+        choices=["raw", "qfq", "hfq"],
+        default="qfq",
+        help="Right valuation price source. Default: qfq.",
+    )
+    compare_backtest_parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Output directory. Defaults to outputs/backtests/compare_YYYYMMDD_HHMMSS/.",
+    )
+    compare_backtest_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format. Default: text.",
+    )
+    compare_backtest_parser.set_defaults(handler=_cmd_compare_backtest_price_sources)
 
     daily_report_parser = subparsers.add_parser("daily-report", help="Generate a daily research report.")
     daily_report_parser.add_argument("--date", required=True, help="Report date in YYYY-MM-DD format.")
@@ -2984,18 +3034,9 @@ def _cmd_run_backtest(args: argparse.Namespace) -> int:
         _print_validation_failure(validation_report, args.format)
         return 1
 
-    result = BacktestEngine(
-        config=config,
-        stock_master=adapter.load_stock_master(),
-        daily_bars=adapter.load_daily_bars(),
-        financial_summary=adapter.load_financial_summary(),
-        announcement_events=adapter.load_announcement_events(),
-    ).run(start_date, end_date)
-    output_dir = args.output_dir or Path("outputs") / "backtests" / f"backtest_{start_date.isoformat()}_{end_date.isoformat()}"
-    save_trades_csv(result.trades, output_dir / "trades.csv")
-    save_daily_equity_csv(result.daily_equity, output_dir / "daily_equity.csv")
-    save_metrics_json(result.metrics, output_dir / "metrics.json")
-    save_backtest_summary_md(result, output_dir / "summary.md")
+    result = _run_backtest_result(config, adapter, start_date, end_date, args.price_source)
+    output_dir = args.output_dir or _default_backtest_output_dir(start_date, end_date, args.price_source)
+    _save_backtest_outputs(result, output_dir)
     experiment_id = None
     if args.record_experiment:
         experiment = ExperimentRecorder(ExperimentRegistry(args.experiment_registry_dir)).record_completed_run(
@@ -3006,6 +3047,7 @@ def _cmd_run_backtest(args: argparse.Namespace) -> int:
                 "data_dir": args.data_dir,
                 "config_dir": config_dir,
                 "output_dir": output_dir,
+                "price_source": args.price_source,
             },
             status="SUCCESS",
             output_dir=output_dir,
@@ -3026,6 +3068,9 @@ def _cmd_run_backtest(args: argparse.Namespace) -> int:
         "trade_count": result.metrics.trade_count,
         "filled_trade_count": result.metrics.filled_trade_count,
         "rejected_trade_count": result.metrics.rejected_trade_count,
+        "price_source": result.price_source,
+        "execution_price_source": "raw",
+        "adjusted_valuation_warning_count": len(result.valuation_warnings),
         "output_dir": str(output_dir),
         "experiment_id": experiment_id,
     }
@@ -3041,9 +3086,52 @@ def _cmd_run_backtest(args: argparse.Namespace) -> int:
         print(f"Trade count: {summary['trade_count']}")
         print(f"Filled trades: {summary['filled_trade_count']}")
         print(f"Rejected trades: {summary['rejected_trade_count']}")
+        print(f"Price source: {summary['price_source']}")
+        print(f"Execution price source: {summary['execution_price_source']}")
+        print(f"Adjusted valuation warning count: {summary['adjusted_valuation_warning_count']}")
         print(f"Output: {output_dir}")
         if experiment_id:
             print(f"Experiment id: {experiment_id}")
+    return 0
+
+
+def _cmd_compare_backtest_price_sources(args: argparse.Namespace) -> int:
+    start_date = _parse_date(args.start)
+    end_date = _parse_date(args.end)
+    if start_date >= end_date:
+        raise ValueError("start must be earlier than end")
+    config_dir = args.config_dir or _default_config_dir()
+    config = load_project_config(config_dir)
+    adapter = LocalCsvAdapter(args.data_dir)
+    validation_report = adapter.validate_all()
+    if not validation_report.passed:
+        _print_validation_failure(validation_report, args.format)
+        return 1
+
+    output_dir = args.output_dir or Path("outputs") / "backtests" / f"compare_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    left_result = _run_backtest_result(config, adapter, start_date, end_date, args.left)
+    right_result = _run_backtest_result(config, adapter, start_date, end_date, args.right)
+    _save_backtest_outputs(left_result, output_dir / "left")
+    _save_backtest_outputs(right_result, output_dir / "right")
+
+    comparison = _compare_backtest_results(left_result, right_result, args.left, args.right, start_date, end_date)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    json_path = output_dir / "backtest_price_source_compare.json"
+    md_path = output_dir / "backtest_price_source_compare.md"
+    csv_path = output_dir / "backtest_price_source_compare.csv"
+    json_path.write_text(json.dumps(comparison, ensure_ascii=False, indent=2), encoding="utf-8")
+    _save_backtest_compare_md(comparison, md_path)
+    _save_backtest_compare_csv(comparison, csv_path)
+
+    if args.format == "json":
+        print(json.dumps(comparison, ensure_ascii=False, indent=2))
+    else:
+        print(f"Backtest price source comparison from {args.start} to {args.end}")
+        print(f"Left: {args.left}")
+        print(f"Right: {args.right}")
+        print(f"Total return diff: {comparison['diff']['total_return_diff']:.6f}")
+        print(f"Final equity diff: {comparison['diff']['final_equity_diff']:.2f}")
+        print(f"Output: {output_dir}")
     return 0
 
 
@@ -3153,6 +3241,9 @@ def _cmd_backtest_report(args: argparse.Namespace) -> int:
         "sharpe": report.sharpe,
         "trade_count": report.trade_count,
         "no_trade": report.no_trade,
+        "price_source": report.price_source,
+        "execution_price_source": report.execution_price_source,
+        "valuation_price_source": report.valuation_price_source,
         "output_dir": str(output_dir),
     }
     if args.format == "json":
@@ -3164,6 +3255,9 @@ def _cmd_backtest_report(args: argparse.Namespace) -> int:
         print(f"Sharpe: {summary['sharpe']:.4f}")
         print(f"Trade count: {summary['trade_count']}")
         print(f"No trade: {summary['no_trade']}")
+        print(f"Price source: {summary['price_source']}")
+        print(f"Execution price source: {summary['execution_price_source']}")
+        print(f"Valuation price source: {summary['valuation_price_source']}")
         print(f"Output: {output_dir}")
     return 0
 
@@ -3511,6 +3605,123 @@ def _default_config_dir() -> Path:
     return Path(__file__).resolve().parents[2] / "configs" / "ashare_alpha"
 
 
+def _default_backtest_output_dir(start_date: date, end_date: date, price_source: str) -> Path:
+    suffix = "" if price_source == "raw" else f"_{price_source}"
+    return Path("outputs") / "backtests" / f"backtest_{start_date.isoformat()}_{end_date.isoformat()}{suffix}"
+
+
+def _run_backtest_result(
+    config,
+    adapter: LocalCsvAdapter,
+    start_date: date,
+    end_date: date,
+    price_source: str,
+) -> BacktestResult:
+    realism_bundle = OptionalRealismDataLoader(adapter.data_dir).load_all() if price_source != "raw" else None
+    return BacktestEngine(
+        config=config,
+        stock_master=adapter.load_stock_master(),
+        daily_bars=adapter.load_daily_bars(),
+        financial_summary=adapter.load_financial_summary(),
+        announcement_events=adapter.load_announcement_events(),
+        price_source=price_source,
+        adjustment_factors=realism_bundle.adjustment_factors if realism_bundle is not None else None,
+        corporate_actions=realism_bundle.corporate_actions if realism_bundle is not None else None,
+    ).run(start_date, end_date)
+
+
+def _save_backtest_outputs(result: BacktestResult, output_dir: Path) -> None:
+    save_trades_csv(result.trades, output_dir / "trades.csv")
+    save_daily_equity_csv(result.daily_equity, output_dir / "daily_equity.csv")
+    save_metrics_json(result.metrics, output_dir / "metrics.json")
+    save_backtest_summary_md(result, output_dir / "summary.md")
+
+
+def _compare_backtest_results(
+    left_result: BacktestResult,
+    right_result: BacktestResult,
+    left_source: str,
+    right_source: str,
+    start_date: date,
+    end_date: date,
+) -> dict[str, object]:
+    left = left_result.metrics
+    right = right_result.metrics
+    return {
+        "start_date": start_date.isoformat(),
+        "end_date": end_date.isoformat(),
+        "left": left_source,
+        "right": right_source,
+        "execution_price_source": "raw",
+        "left_metrics": {
+            "total_return": left.total_return,
+            "annualized_return": left.annualized_return,
+            "max_drawdown": left.max_drawdown,
+            "sharpe": left.sharpe,
+            "trade_count": left.trade_count,
+            "final_equity": left.final_equity,
+        },
+        "right_metrics": {
+            "total_return": right.total_return,
+            "annualized_return": right.annualized_return,
+            "max_drawdown": right.max_drawdown,
+            "sharpe": right.sharpe,
+            "trade_count": right.trade_count,
+            "final_equity": right.final_equity,
+        },
+        "diff": {
+            "total_return_diff": right.total_return - left.total_return,
+            "annualized_return_diff": right.annualized_return - left.annualized_return,
+            "max_drawdown_diff": right.max_drawdown - left.max_drawdown,
+            "sharpe_diff": right.sharpe - left.sharpe,
+            "trade_count_diff": right.trade_count - left.trade_count,
+            "final_equity_diff": right.final_equity - left.final_equity,
+        },
+        "adjusted_research_note": (
+            "raw vs qfq/hfq is a research valuation comparison only; execution constraints remain based on raw daily bars."
+        ),
+        "not_investment_advice": True,
+        "no_live_trading": True,
+        "left_adjusted_valuation_warning_count": len(left_result.valuation_warnings),
+        "right_adjusted_valuation_warning_count": len(right_result.valuation_warnings),
+    }
+
+
+def _save_backtest_compare_csv(comparison: dict[str, object], output_path: Path) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    diff = comparison["diff"]
+    assert isinstance(diff, dict)
+    with output_path.open("w", encoding="utf-8", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=["metric", "diff"])
+        writer.writeheader()
+        for key, value in diff.items():
+            writer.writerow({"metric": key, "diff": value})
+
+
+def _save_backtest_compare_md(comparison: dict[str, object], output_path: Path) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    diff = comparison["diff"]
+    assert isinstance(diff, dict)
+    lines = [
+        "# Backtest Price Source Compare",
+        "",
+        f"- Start date: {comparison['start_date']}",
+        f"- End date: {comparison['end_date']}",
+        f"- Left: {comparison['left']}",
+        f"- Right: {comparison['right']}",
+        "- Execution constraints remain based on raw daily bars.",
+        "- raw vs qfq/hfq is a research valuation comparison only.",
+        "- Adjusted valuation is not a live trading execution price.",
+        "- This is not investment advice.",
+        "- The system does not place orders automatically.",
+        "",
+        "## Diffs",
+        "",
+    ]
+    lines.extend(f"- {key}: {value}" for key, value in diff.items())
+    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def _walkforward_default_output_root(spec_path: Path) -> Path:
     payload = load_yaml_config(Path(spec_path))
     output_root = payload.get("output_root_dir")
@@ -3618,7 +3829,7 @@ def _load_backtest_result(backtest_dir: Path) -> BacktestResult:
     metrics = BacktestMetrics(**metrics_payload)
     trades = [_trade_from_row(row) for row in _read_csv_rows(trades_path)]
     daily_equity = [_daily_equity_from_row(row) for row in _read_csv_rows(daily_equity_path)]
-    return BacktestResult(metrics=metrics, trades=trades, daily_equity=daily_equity)
+    return BacktestResult(metrics=metrics, trades=trades, daily_equity=daily_equity, price_source=metrics.price_source)
 
 
 def _read_csv_rows(path: Path) -> list[dict[str, str]]:
@@ -3645,6 +3856,9 @@ def _trade_from_row(row: dict[str, str]) -> SimulatedTrade:
         payload[key] = _optional_float(payload[key])
     payload["holding_days"] = _optional_int(payload["holding_days"])
     payload["reject_reason"] = payload["reject_reason"] or None
+    payload["price_source"] = payload["price_source"] or "raw"
+    payload["execution_price_source"] = payload["execution_price_source"] or "raw"
+    payload["valuation_price_source"] = payload["valuation_price_source"] or payload["price_source"]
     return SimulatedTrade(**payload)
 
 
@@ -3654,6 +3868,8 @@ def _daily_equity_from_row(row: dict[str, str]) -> DailyEquityRecord:
     payload["positions_count"] = int(float(payload["positions_count"] or 0))
     for key in ("cash", "market_value", "total_equity", "gross_exposure", "daily_return", "drawdown"):
         payload[key] = float(payload[key] or 0)
+    payload["price_source"] = payload["price_source"] or "raw"
+    payload["valuation_basis"] = payload["valuation_basis"] or None
     return DailyEquityRecord(**payload)
 
 

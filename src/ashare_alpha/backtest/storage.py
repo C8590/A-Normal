@@ -58,6 +58,22 @@ def save_backtest_summary_md(result: BacktestResult, output_path: Path) -> None:
             f"- Trade count: {metrics.trade_count}",
             f"- Filled trades: {metrics.filled_trade_count}",
             f"- Rejected trades: {metrics.rejected_trade_count}",
+            f"- Price source: {result.price_source}",
+            "- Execution price source: raw daily bars",
+            f"- Valuation price source: {result.price_source}",
+            f"- Adjusted valuation warning count: {len(result.valuation_warnings)}",
+            "",
+            "## Price Source Note",
+            "",
+            f"- price_source={result.price_source}",
+            "- execution constraints are based on raw daily bars",
+            "- adjusted valuation is for research only",
+            "- adjusted prices are not used as real execution prices",
+            "- not a live trading simulation",
+            "- not investment advice",
         ]
     )
+    if result.valuation_warnings:
+        text += "\n\n## Valuation Warnings\n\n"
+        text += "\n".join(f"- {warning}" for warning in result.valuation_warnings)
     output_path.write_text(text + "\n", encoding="utf-8")
