@@ -17,6 +17,7 @@ DashboardArtifactType = Literal[
     "leakage_audit",
     "security_scan",
     "probability_model",
+    "adjusted_research",
     "unknown",
 ]
 
@@ -62,6 +63,7 @@ class DashboardSummary(DashboardModel):
     latest_backtest: DashboardArtifact | None = None
     latest_sweep: DashboardArtifact | None = None
     latest_walkforward: DashboardArtifact | None = None
+    latest_adjusted_research: DashboardArtifact | None = None
     latest_candidate_selection: DashboardArtifact | None = None
     top_candidates: list[dict[str, Any]] = Field(default_factory=list)
     recent_experiments: list[dict[str, Any]] = Field(default_factory=list)

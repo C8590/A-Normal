@@ -53,6 +53,8 @@ def extract_metrics_from_output(output_dir: Path, command: str) -> list[Experime
         return _probability_metrics(base / "metrics.json")
     if normalized == "daily-report":
         return _daily_report_metrics(base / "daily_report.json")
+    if normalized == "adjusted-research-report":
+        return _adjusted_research_metrics(base / "adjusted_research_report.json")
     return []
 
 
@@ -186,6 +188,50 @@ def _daily_report_metrics(path: Path) -> list[ExperimentMetric]:
         for name, source_key in mapping.items()
         if source_key in summary
     ]
+
+
+def _adjusted_research_metrics(path: Path) -> list[ExperimentMetric]:
+    payload = _read_json(path)
+    if not isinstance(payload, dict):
+        return []
+    metrics: list[ExperimentMetric] = [
+        ExperimentMetric(
+            name="factor_comparison_count",
+            value=len(payload.get("factor_comparisons", [])) if isinstance(payload.get("factor_comparisons"), list) else 0,
+            category="adjusted_research",
+        ),
+        ExperimentMetric(
+            name="backtest_comparison_count",
+            value=len(payload.get("backtest_comparisons", [])) if isinstance(payload.get("backtest_comparisons"), list) else 0,
+            category="adjusted_research",
+        ),
+        ExperimentMetric(
+            name="warning_count",
+            value=len(payload.get("warning_items", [])) if isinstance(payload.get("warning_items"), list) else 0,
+            category="adjusted_research",
+        ),
+    ]
+    comparisons = payload.get("backtest_comparisons", [])
+    if isinstance(comparisons, list):
+        for row in comparisons:
+            if not isinstance(row, dict) or row.get("left_price_source") != "raw":
+                continue
+            right = row.get("right_price_source")
+            if right not in {"qfq", "hfq"}:
+                continue
+            prefix = f"raw_{right}"
+            for source_key, metric_name in (
+                ("total_return_diff", f"{prefix}_total_return_diff"),
+                ("sharpe_diff", f"{prefix}_sharpe_diff"),
+            ):
+                metrics.append(
+                    ExperimentMetric(
+                        name=metric_name,
+                        value=row.get(source_key),
+                        category="adjusted_research",
+                    )
+                )
+    return metrics
 
 
 def _read_json(path: Path) -> Any:

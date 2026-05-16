@@ -11,11 +11,12 @@ def build_dashboard_summary(index: DashboardIndex) -> DashboardSummary:
     latest_backtest = _latest(index, "backtest")
     latest_sweep = _latest(index, "sweep")
     latest_walkforward = _latest(index, "walkforward")
+    latest_adjusted_research = _latest(index, "adjusted_research")
     latest_candidate_selection = _latest(index, "candidate_selection")
     top_candidates = _top_candidates(latest_candidate_selection)
     recent_experiments = _recent_experiments(index)
     warning_items = _warning_items(index)
-    summary_text = _summary_text(index, latest_pipeline, latest_walkforward, top_candidates, warning_items)
+    summary_text = _summary_text(index, latest_pipeline, latest_walkforward, latest_adjusted_research, top_candidates, warning_items)
     return DashboardSummary(
         generated_at=datetime.now(),
         outputs_root=index.outputs_root,
@@ -23,6 +24,7 @@ def build_dashboard_summary(index: DashboardIndex) -> DashboardSummary:
         latest_backtest=latest_backtest,
         latest_sweep=latest_sweep,
         latest_walkforward=latest_walkforward,
+        latest_adjusted_research=latest_adjusted_research,
         latest_candidate_selection=latest_candidate_selection,
         top_candidates=top_candidates,
         recent_experiments=recent_experiments,
@@ -84,19 +86,26 @@ def _warning_items(index: DashboardIndex) -> list[dict[str, Any]]:
         summary = artifact.summary
         if artifact.artifact_type in {"quality_report", "leakage_audit", "security_scan"}:
             if _int(summary.get("error_count")) > 0:
-                warnings.append(_warning(artifact, f"{artifact.artifact_type} 存在 error 级问题。"))
+                warnings.append(_warning(artifact, f"{artifact.artifact_type} has error-level issues."))
         elif artifact.artifact_type == "walkforward":
             overfit_warnings = summary.get("overfit_warnings")
             if isinstance(overfit_warnings, list) and overfit_warnings:
-                warnings.append(_warning(artifact, "walk-forward 存在稳定性或过拟合提示。", {"overfit_warnings": overfit_warnings}))
+                warnings.append(_warning(artifact, "walk-forward has stability or overfit warnings.", {"overfit_warnings": overfit_warnings}))
         elif artifact.artifact_type == "sweep":
             if _int(summary.get("failed_count")) > 0:
-                warnings.append(_warning(artifact, "sweep 存在失败 variant。"))
+                warnings.append(_warning(artifact, "sweep has failed variants."))
         elif artifact.artifact_type == "pipeline":
             if artifact.status and artifact.status != "SUCCESS":
-                warnings.append(_warning(artifact, f"pipeline 状态为 {artifact.status}。"))
+                warnings.append(_warning(artifact, f"pipeline status is {artifact.status}."))
+        elif artifact.artifact_type == "adjusted_research":
+            warning_items = summary.get("warning_items")
+            warning_count = _int(summary.get("warning_count"))
+            if artifact.status and artifact.status != "SUCCESS":
+                warnings.append(_warning(artifact, f"adjusted_research status is {artifact.status}.", {"warning_items": warning_items or []}))
+            elif warning_count > 0:
+                warnings.append(_warning(artifact, "adjusted_research has research warnings.", {"warning_items": warning_items or []}))
         elif artifact.artifact_type == "unknown":
-            warnings.append(_warning(artifact, "研究产物读取失败。"))
+            warnings.append(_warning(artifact, "research artifact could not be read."))
     return warnings
 
 
@@ -117,29 +126,36 @@ def _summary_text(
     index: DashboardIndex,
     latest_pipeline: DashboardArtifact | None,
     latest_walkforward: DashboardArtifact | None,
+    latest_adjusted_research: DashboardArtifact | None,
     top_candidates: list[dict[str, Any]],
     warning_items: list[dict[str, Any]],
 ) -> str:
-    pipeline_text = "未发现最新 pipeline。"
+    pipeline_text = "No latest pipeline was found."
     if latest_pipeline is not None:
-        pipeline_text = f"最新 pipeline 状态为 {latest_pipeline.status or '未知'}。"
-    wf_text = "未发现 walk-forward 稳定性结果。"
+        pipeline_text = f"Latest pipeline status is {latest_pipeline.status or 'unknown'}."
+    wf_text = "No walk-forward stability result was found."
     if latest_walkforward is not None:
         warnings = latest_walkforward.summary.get("overfit_warnings")
         if isinstance(warnings, list) and warnings:
-            wf_text = f"最新 walk-forward 有 {len(warnings)} 条稳定性提示，需人工复核。"
+            wf_text = f"Latest walk-forward has {len(warnings)} stability warnings."
         else:
-            wf_text = "最新 walk-forward 未记录主要稳定性提示。"
-    risk_text = "当前汇总未发现质量、安全或审计 error。"
+            wf_text = "Latest walk-forward has no major stability warnings."
+    adjusted_text = "No adjusted research comparison has been scanned."
+    if latest_adjusted_research is not None:
+        adjusted_text = (
+            f"Latest adjusted research status is {latest_adjusted_research.status or 'unknown'} "
+            f"with {_int(latest_adjusted_research.summary.get('warning_count'))} warning items."
+        )
+    risk_text = "No quality, security, or audit errors were found in this summary."
     if any(item.get("artifact_type") in {"quality_report", "leakage_audit", "security_scan"} for item in warning_items):
-        risk_text = "当前汇总存在质量、安全或审计 error，请先复核。"
-    candidate_text = "未发现建议进入下一轮验证的研究候选。"
+        risk_text = "Quality, security, or audit errors exist and should be reviewed first."
+    candidate_text = "No research candidate was marked for the next validation round."
     if any(item.get("recommendation") == "ADVANCE" for item in top_candidates):
-        candidate_text = "存在建议进入下一轮验证的研究候选。"
+        candidate_text = "Some research candidates are marked for the next validation round."
     return (
-        f"本次扫描到 {index.artifact_count} 个研究产物。{pipeline_text}"
-        f"{wf_text}{risk_text}{candidate_text}"
-        "该 Dashboard 只做研究汇总，不构成投资建议，不保证未来收益，也不会自动下单。"
+        f"Scanned {index.artifact_count} research artifacts. "
+        f"{pipeline_text} {wf_text} {adjusted_text} {risk_text} {candidate_text} "
+        "Dashboard is for research summary only; 不构成投资建议; no future return is guaranteed, and no automatic orders are placed."
     )
 
 
