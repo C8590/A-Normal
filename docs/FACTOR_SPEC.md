@@ -12,12 +12,21 @@ All calculations use only local CSV data from `trade_date` and earlier. No exter
 python -m ashare_alpha compute-factors --date 2026-03-20
 python -m ashare_alpha compute-factors --date 2026-03-20 --format json
 python -m ashare_alpha compute-factors --date 2026-03-20 --output outputs/factors/test.csv
+python -m ashare_alpha compute-factors --date 2026-03-20 --price-source qfq
+python -m ashare_alpha compare-factor-price-sources --date 2026-03-20 --left raw --right qfq
 ```
 
 Default CSV output:
 
 ```text
 outputs/factors/factor_daily_YYYY-MM-DD.csv
+```
+
+Explicit adjusted outputs use suffixes:
+
+```text
+outputs/factors/factor_daily_YYYY-MM-DD_qfq.csv
+outputs/factors/factor_daily_YYYY-MM-DD_hfq.csv
 ```
 
 ## Fields
@@ -28,6 +37,7 @@ outputs/factors/factor_daily_YYYY-MM-DD.csv
 - Liquidity: `amount_mean_20d`, `turnover_mean_20d`
 - Limit statistics: `limit_up_recent_count`, `limit_down_recent_count`
 - Computability: `trading_days_used`, `is_computable`, `missing_reasons`, `missing_reason_text`
+- Price source audit: `price_source`, `adjusted_used`, `adjusted_quality_flags`, `adjusted_quality_reason`
 
 ## Formulas
 
@@ -44,6 +54,8 @@ outputs/factors/factor_daily_YYYY-MM-DD.csv
 
 Windows come from `configs/ashare_alpha/factors.yaml`; `price_tick` comes from `configs/ashare_alpha/trading_rules.yaml`.
 
+`--price-source raw` is the default. Explicit `qfq` / `hfq` uses adjusted prices for return, momentum, moving average, volatility, and drawdown factors. Amount, turnover, and limit statistics remain based on raw daily bars. See `docs/ADJUSTED_FACTOR_SPEC.md`.
+
 ## Missing Reasons
 
 - `NO_BARS`: 没有任何历史日线数据
@@ -54,3 +66,7 @@ Windows come from `configs/ashare_alpha/factors.yaml`; `price_tick` comes from `
 - `INSUFFICIENT_VOLATILITY_WINDOW`: 历史交易日数量不足，无法计算波动因子
 - `INSUFFICIENT_LIQUIDITY_WINDOW`: 历史交易日数量不足，无法计算流动性因子
 - `INVALID_PRICE_DATA`: 价格数据异常
+- `ADJUSTED_PRICE_UNAVAILABLE`: 复权价格不可用，无法完整计算复权价格因子
+- `ADJUSTED_PRICE_INVALID`: 复权价格质量校验未通过
+- `ADJUSTED_FACTOR_MISSING`: 缺少复权因子，无法生成完整复权价格
+- `ADJUSTED_QUALITY_WARNING`: 复权价格存在质量提示，请先核查后使用

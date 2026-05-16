@@ -37,6 +37,8 @@ def test_factor_daily_record_validates() -> None:
     )
 
     assert record.is_computable is True
+    assert record.price_source == "raw"
+    assert record.adjusted_used is False
 
 
 def test_non_computable_record_requires_missing_reason() -> None:
@@ -88,4 +90,31 @@ def test_limit_up_count_must_not_be_negative() -> None:
             limit_down_recent_count=0,
             trading_days_used=80,
             is_computable=True,
+        )
+
+
+def test_adjusted_used_requires_adjusted_price_source() -> None:
+    with pytest.raises(ValidationError, match="adjusted_used"):
+        FactorDailyRecord(
+            trade_date="2026-03-20",
+            ts_code="600001.SH",
+            limit_up_recent_count=0,
+            limit_down_recent_count=0,
+            trading_days_used=80,
+            is_computable=True,
+            price_source="raw",
+            adjusted_used=True,
+        )
+
+
+def test_price_source_must_be_known() -> None:
+    with pytest.raises(ValidationError, match="price_source"):
+        FactorDailyRecord(
+            trade_date="2026-03-20",
+            ts_code="600001.SH",
+            limit_up_recent_count=0,
+            limit_down_recent_count=0,
+            trading_days_used=80,
+            is_computable=True,
+            price_source="bad",
         )

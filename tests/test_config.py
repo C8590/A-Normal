@@ -80,6 +80,29 @@ def test_ashare_alpha_explicit_config_dir_loads():
 
     assert config.universe.allowed_boards == ("main",)
     assert config.backtest.rebalance_frequency == "weekly"
+    assert config.factors.price_source.default == "raw"
+    assert "raw" in config.factors.price_source.allowed
+
+
+def test_factor_price_source_config_requires_raw_in_allowed(tmp_path):
+    config_dir = copy_ashare_alpha_config(tmp_path)
+    factors = yaml.safe_load((config_dir / "factors.yaml").read_text(encoding="utf-8"))
+    factors["price_source"]["allowed"] = ["qfq", "hfq"]
+    write_yaml(config_dir / "factors.yaml", factors)
+
+    with pytest.raises(ConfigValidationError, match="allowed must include raw"):
+        load_project_config(config_dir)
+
+
+def test_factor_price_source_config_requires_default_in_allowed(tmp_path):
+    config_dir = copy_ashare_alpha_config(tmp_path)
+    factors = yaml.safe_load((config_dir / "factors.yaml").read_text(encoding="utf-8"))
+    factors["price_source"]["default"] = "hfq"
+    factors["price_source"]["allowed"] = ["raw", "qfq"]
+    write_yaml(config_dir / "factors.yaml", factors)
+
+    with pytest.raises(ConfigValidationError, match="default must be listed"):
+        load_project_config(config_dir)
 
 
 def test_ashare_alpha_missing_config_file_raises_clear_error(tmp_path):

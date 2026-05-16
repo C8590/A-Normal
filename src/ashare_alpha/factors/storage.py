@@ -15,4 +15,5 @@ def save_factor_csv(records: list[FactorDailyRecord], output_path: Path) -> None
         for record in records:
             row = record.model_dump(mode="json")
             row["missing_reasons"] = ";".join(record.missing_reasons)
+            row["adjusted_quality_flags"] = ";".join(record.adjusted_quality_flags)
             writer.writerow(row)

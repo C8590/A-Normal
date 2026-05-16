@@ -1,7 +1,7 @@
 # Command Matrix
 
-- generated_at: 2026-05-16T13:00:13.667047
-- command_count: 52
+- generated_at: 2026-05-16T14:02:19.958323
+- command_count: 53
 
 This matrix documents local offline research commands. It does not introduce external API calls, broker integration, web scraping, or live trading.
 
@@ -60,7 +60,8 @@ This matrix documents local offline research commands. It does not introduce ext
 | command | purpose | required args | common example | output location | safety note |
 | --- | --- | --- | --- | --- | --- |
 | build-universe | 构建当日研究股票池。 | --date | `python -m ashare_alpha build-universe --date 2026-03-20` | outputs/universe/... | 只生成研究文件。 |
-| compute-factors | 计算日频因子。 | --date | `python -m ashare_alpha compute-factors --date 2026-03-20` | outputs/factors/... | 不联网。 |
+| compute-factors | 计算日频因子，可显式选择 raw/qfq/hfq 价格源。 | --date | `python -m ashare_alpha compute-factors --date 2026-03-20 --price-source qfq` | outputs/factors/... | 默认 raw；qfq/hfq 只读取本地复权数据，不改变 pipeline/backtest 默认逻辑，不联网。 |
+| compare-factor-price-sources | 比较两个 factor price_source 版本的差异。 | --date | `python -m ashare_alpha compare-factor-price-sources --date 2026-03-20 --left raw --right qfq` | outputs/factors/compare_... | 仅生成研究比较报告，不构成投资建议，不下单。 |
 | compute-events | 计算公告事件特征。 | --date | `python -m ashare_alpha compute-events --date 2026-03-20` | outputs/events/... | 只用本地公告样本。 |
 | generate-signals | 生成研究信号。 | --date | `python -m ashare_alpha generate-signals --date 2026-03-20` | outputs/signals/... | 信号仅用于研究，不下单。 |
 | run-pipeline | 运行完整日频研究流水线。 | --date | `python -m ashare_alpha run-pipeline --date 2026-03-20` | outputs/pipelines/... | 不连接券商，不下单。 |

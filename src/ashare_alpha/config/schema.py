@@ -47,6 +47,27 @@ class FeesConfig(StrictConfigModel):
     slippage_bps: float = Field(ge=0)
 
 
+class FactorPriceSourceConfig(StrictConfigModel):
+    default: Literal["raw", "qfq", "hfq"] = "raw"
+    allowed: tuple[Literal["raw", "qfq", "hfq"], ...] = ("raw", "qfq", "hfq")
+
+    @model_validator(mode="after")
+    def validate_allowed_sources(self) -> FactorPriceSourceConfig:
+        if "raw" not in self.allowed:
+            raise ValueError("factors.price_source.allowed must include raw")
+        if self.default not in self.allowed:
+            raise ValueError("factors.price_source.default must be listed in allowed")
+        return self
+
+
+class FactorAdjustedConfig(StrictConfigModel):
+    use_adjusted_for_returns: bool = False
+    use_adjusted_for_momentum: bool = False
+    use_adjusted_for_ma: bool = False
+    use_adjusted_for_volatility: bool = False
+    use_adjusted_for_drawdown: bool = False
+
+
 class FactorsConfig(StrictConfigModel):
     momentum_windows: tuple[int, ...]
     volatility_window: int = Field(gt=0)
@@ -54,6 +75,8 @@ class FactorsConfig(StrictConfigModel):
     liquidity_window: int = Field(gt=0)
     recent_limit_window: int = Field(gt=0)
     ma_windows: tuple[int, ...]
+    price_source: FactorPriceSourceConfig = Field(default_factory=FactorPriceSourceConfig)
+    adjusted: FactorAdjustedConfig = Field(default_factory=FactorAdjustedConfig)
     event_scoring: EventScoringConfig
 
     @model_validator(mode="after")
