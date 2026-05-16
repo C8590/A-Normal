@@ -10,6 +10,14 @@ from pathlib import Path
 
 import ashare_alpha as ashare_alpha_package
 from ashare_alpha import __version__
+from ashare_alpha.adjusted import (
+    AdjustedDailyBarBuilder,
+    save_adjusted_daily_bar_csv,
+    save_adjusted_report_md,
+    save_adjusted_summary_json,
+    save_adjusted_validation_json,
+    validate_adjusted_records,
+)
 from ashare_alpha.audit import (
     LeakageAuditor,
     build_data_snapshot,
@@ -952,6 +960,39 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output format. Default: text.",
     )
     quality_report_parser.set_defaults(handler=_cmd_quality_report)
+
+    build_adjusted_parser = subparsers.add_parser(
+        "build-adjusted-bars",
+        help="Build auditable adjusted daily bar CSVs from daily_bar and adjustment_factor.",
+    )
+    build_adjusted_parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=DEFAULT_DATA_DIR,
+        help="Directory containing local CSV files. Defaults to data/sample/ashare_alpha/.",
+    )
+    build_adjusted_parser.add_argument("--start", default=None, help="Start date in YYYY-MM-DD format.")
+    build_adjusted_parser.add_argument("--end", default=None, help="End date in YYYY-MM-DD format.")
+    build_adjusted_parser.add_argument("--date", default=None, help="Single build date in YYYY-MM-DD format.")
+    build_adjusted_parser.add_argument(
+        "--adj-type",
+        choices=["qfq", "hfq", "raw"],
+        default="qfq",
+        help="Adjusted price type. Default: qfq.",
+    )
+    build_adjusted_parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Output directory. Defaults to outputs/adjusted/adjusted_YYYYMMDD_HHMMSS.",
+    )
+    build_adjusted_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format. Default: text.",
+    )
+    build_adjusted_parser.set_defaults(handler=_cmd_build_adjusted_bars)
 
     check_security_parser = subparsers.add_parser("check-security", help="Scan configuration for unsafe secrets and trading flags.")
     check_security_parser.add_argument(
@@ -2030,6 +2071,68 @@ def _cmd_quality_report(args: argparse.Namespace) -> int:
         print(f"Info: {summary['info_count']}")
         print(f"Output: {output_dir}")
     return 1 if report.error_count > 0 else 0
+
+
+def _cmd_build_adjusted_bars(args: argparse.Namespace) -> int:
+    has_date = args.date is not None
+    has_range = args.start is not None or args.end is not None
+    if has_date and has_range:
+        raise ValueError("Provide either --date or --start/--end, not both.")
+    if not has_date and not (args.start is not None and args.end is not None):
+        raise ValueError("Provide --date or both --start and --end.")
+    if (args.start is None) != (args.end is None):
+        raise ValueError("Provide both --start and --end.")
+
+    adapter = LocalCsvAdapter(args.data_dir)
+    validation_report = adapter.validate_all()
+    if not validation_report.passed:
+        _print_validation_failure(validation_report, args.format)
+        return 1
+
+    daily_bars = adapter.load_daily_bars()
+    realism_bundle = OptionalRealismDataLoader(args.data_dir).load_all()
+    builder = AdjustedDailyBarBuilder(
+        daily_bars=daily_bars,
+        adjustment_factors=realism_bundle.adjustment_factors,
+        corporate_actions=realism_bundle.corporate_actions,
+        adj_type=args.adj_type,
+    )
+    if has_date:
+        build_date = _parse_date(args.date)
+        records, summary = builder.build_for_date(build_date)
+    else:
+        start_date = _parse_date(args.start)
+        end_date = _parse_date(args.end)
+        records, summary = builder.build_for_range(start_date, end_date)
+
+    output_dir = args.output_dir or Path("outputs") / "adjusted" / f"adjusted_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    adjusted_csv = output_dir / "adjusted_daily_bar.csv"
+    validation = validate_adjusted_records(records)
+    summary = summary.model_copy(update={"output_path": str(adjusted_csv)})
+    save_adjusted_daily_bar_csv(records, adjusted_csv)
+    save_adjusted_summary_json(summary, output_dir / "adjusted_summary.json")
+    save_adjusted_validation_json(validation, output_dir / "adjusted_validation.json")
+    save_adjusted_report_md(summary, validation, output_dir / "adjusted_report.md")
+
+    payload = {
+        "total_records": summary.total_records,
+        "adjusted_records": summary.adjusted_records,
+        "invalid_records": summary.invalid_records,
+        "error_count": validation.error_count,
+        "warning_count": validation.warning_count,
+        "output_dir": str(output_dir),
+    }
+    if args.format == "json":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print("Adjusted daily bars generated")
+        print(f"Total records: {payload['total_records']}")
+        print(f"Adjusted records: {payload['adjusted_records']}")
+        print(f"Invalid records: {payload['invalid_records']}")
+        print(f"Errors: {payload['error_count']}")
+        print(f"Warnings: {payload['warning_count']}")
+        print(f"Output: {output_dir}")
+    return 1 if validation.error_count > 0 else 0
 
 
 def _cmd_check_security(args: argparse.Namespace) -> int:

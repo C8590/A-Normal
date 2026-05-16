@@ -126,6 +126,36 @@ def check_adjustment_factor(
     for ts_code in daily_codes:
         if ts_code not in factor_codes:
             issues.append(_issue("info", "adjustment_factor", "missing_qfq_factor_for_stock", ts_code, "adj_factor", "daily_bar exists but qfq adjustment_factor has no rows for this stock.", "Populate qfq factors before building adjusted daily bars."))
+
+    qfq_factor_dates = {
+        (_clean(row.get("ts_code")), _parse_date(row.get("trade_date")))
+        for row in rows
+        if _clean(row.get("adj_type")) == "qfq"
+    }
+    missing_by_stock: dict[str, date] = {}
+    for row in daily_rows:
+        ts_code = _clean(row.get("ts_code"))
+        trade_date = _parse_date(row.get("trade_date"))
+        if not ts_code or trade_date is None or _parse_bool(row.get("is_trading")) is not True:
+            continue
+        if (ts_code, trade_date) not in qfq_factor_dates and ts_code not in missing_by_stock:
+            missing_by_stock[ts_code] = trade_date
+    for ts_code, trade_date in sorted(missing_by_stock.items()):
+        issues.append(_issue("warning", "adjustment_factor", "missing_factor_for_trading_daily_bar", ts_code, "adj_factor", "daily_bar has trading rows but same-day qfq adjustment_factor is missing.", "Backfill same-day factors or use raw adjusted mode for research that does not require factors.", trade_date))
+
+    dates_by_stock_type: dict[tuple[str, str], list[date]] = defaultdict(list)
+    for row in rows:
+        ts_code = _clean(row.get("ts_code"))
+        trade_date = _parse_date(row.get("trade_date"))
+        adj_type = _clean(row.get("adj_type"))
+        if ts_code and trade_date and adj_type:
+            dates_by_stock_type[(ts_code, adj_type)].append(trade_date)
+    for (ts_code, adj_type), dates in sorted(dates_by_stock_type.items()):
+        unique_dates = sorted(set(dates))
+        for previous, current in zip(unique_dates, unique_dates[1:]):
+            if (current - previous).days > 10:
+                issues.append(_issue("warning", "adjustment_factor", "factor_date_gap", ts_code, "trade_date", f"{adj_type} adjustment_factor has a large date gap.", "Confirm whether the gap is a holiday, suspension, or missing factor data.", current))
+                break
     return issues
 
 
