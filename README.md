@@ -351,9 +351,14 @@ Compute sample factors:
 python -m ashare_alpha compute-factors --date 2026-03-20
 python -m ashare_alpha compute-factors --date 2026-03-20 --format json
 python -m ashare_alpha compute-factors --date 2026-03-20 --output outputs/factors/test.csv
+python -m ashare_alpha compute-factors --date 2026-03-20 --price-source qfq
+python -m ashare_alpha compute-factors --date 2026-03-20 --price-source hfq
+python -m ashare_alpha compare-factor-price-sources --date 2026-03-20 --left raw --right qfq
 ```
 
-The factor step does not read `universe_daily`, does not score stocks, and does not create buy or sell signals.
+`compute-factors` defaults to `--price-source raw` and writes the compatible `factor_daily_YYYY-MM-DD.csv` file. Explicit `qfq` and `hfq` runs use local `adjustment_factor.csv` / `corporate_action.csv` data to compute price-derived factors into separate adjusted factor files, while amount, turnover, and limit-up / limit-down statistics remain based on raw `daily_bar.csv`. `compare-factor-price-sources` writes CSV, JSON, and Markdown research reports for raw-vs-adjusted differences.
+
+The factor step does not read `universe_daily`, does not score stocks, and does not create buy or sell signals. `run-pipeline` and `run-backtest` defaults remain raw and unchanged. See `docs/ADJUSTED_FACTOR_SPEC.md`.
 
 ## Announcement Events
 

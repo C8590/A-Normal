@@ -11,6 +11,20 @@ ma_windows:
   - 20
   - 60
 
+price_source:
+  default: raw
+  allowed:
+    - raw
+    - qfq
+    - hfq
+
+adjusted:
+  use_adjusted_for_returns: false
+  use_adjusted_for_momentum: false
+  use_adjusted_for_ma: false
+  use_adjusted_for_volatility: false
+  use_adjusted_for_drawdown: false
+
 event_scoring:
   event_window_days: 20
   decay_half_life_days: 7

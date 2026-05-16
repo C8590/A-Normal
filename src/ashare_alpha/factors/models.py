@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class FactorMissingReason(StrEnum):
@@ -15,6 +15,10 @@ class FactorMissingReason(StrEnum):
     INSUFFICIENT_VOLATILITY_WINDOW = "INSUFFICIENT_VOLATILITY_WINDOW"
     INSUFFICIENT_LIQUIDITY_WINDOW = "INSUFFICIENT_LIQUIDITY_WINDOW"
     INVALID_PRICE_DATA = "INVALID_PRICE_DATA"
+    ADJUSTED_PRICE_UNAVAILABLE = "ADJUSTED_PRICE_UNAVAILABLE"
+    ADJUSTED_PRICE_INVALID = "ADJUSTED_PRICE_INVALID"
+    ADJUSTED_FACTOR_MISSING = "ADJUSTED_FACTOR_MISSING"
+    ADJUSTED_QUALITY_WARNING = "ADJUSTED_QUALITY_WARNING"
 
 
 MISSING_REASON_TEXT: dict[FactorMissingReason, str] = {
@@ -26,6 +30,10 @@ MISSING_REASON_TEXT: dict[FactorMissingReason, str] = {
     FactorMissingReason.INSUFFICIENT_VOLATILITY_WINDOW: "历史交易日数量不足，无法计算波动因子",
     FactorMissingReason.INSUFFICIENT_LIQUIDITY_WINDOW: "历史交易日数量不足，无法计算流动性因子",
     FactorMissingReason.INVALID_PRICE_DATA: "价格数据异常",
+    FactorMissingReason.ADJUSTED_PRICE_UNAVAILABLE: "复权价格不可用，无法完整计算复权价格因子",
+    FactorMissingReason.ADJUSTED_PRICE_INVALID: "复权价格质量校验未通过",
+    FactorMissingReason.ADJUSTED_FACTOR_MISSING: "缺少复权因子，无法生成完整复权价格",
+    FactorMissingReason.ADJUSTED_QUALITY_WARNING: "复权价格存在质量提示，请先核查后使用",
 }
 
 
@@ -58,13 +66,26 @@ class FactorDailyRecord(BaseModel):
     is_computable: bool
     missing_reasons: list[str] = Field(default_factory=list)
     missing_reason_text: str = ""
+    price_source: str = "raw"
+    adjusted_used: bool = False
+    adjusted_quality_flags: list[str] = Field(default_factory=list)
+    adjusted_quality_reason: str | None = None
+
+    @field_validator("price_source")
+    @classmethod
+    def validate_price_source(cls, value: str) -> str:
+        if value not in {"raw", "qfq", "hfq"}:
+            raise ValueError("price_source must be one of raw, qfq, hfq")
+        return value
 
     @model_validator(mode="after")
-    def validate_missing_reason_consistency(self) -> FactorDailyRecord:
+    def validate_consistency(self) -> FactorDailyRecord:
         if not self.is_computable and not self.missing_reasons:
             raise ValueError("missing_reasons must not be empty when is_computable is false")
         if self.is_computable and self.missing_reasons:
             raise ValueError("missing_reasons must be empty when is_computable is true")
+        if self.adjusted_used and self.price_source == "raw":
+            raise ValueError("adjusted_used cannot be true when price_source is raw")
         return self
 
 

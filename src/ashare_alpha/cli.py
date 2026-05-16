@@ -662,12 +662,61 @@ def build_parser() -> argparse.ArgumentParser:
         help="CSV output path. Defaults to outputs/factors/factor_daily_YYYY-MM-DD.csv.",
     )
     compute_factors_parser.add_argument(
+        "--price-source",
+        choices=["raw", "qfq", "hfq"],
+        default="raw",
+        help="Price source for price-derived factors. Default: raw.",
+    )
+    compute_factors_parser.add_argument(
         "--format",
         choices=["text", "json"],
         default="text",
         help="Output format. Default: text.",
     )
     compute_factors_parser.set_defaults(handler=_cmd_compute_factors)
+
+    compare_factor_sources_parser = subparsers.add_parser(
+        "compare-factor-price-sources",
+        help="Compare factor_daily values from two factor price sources.",
+    )
+    compare_factor_sources_parser.add_argument("--date", required=True, help="Trade date in YYYY-MM-DD format.")
+    compare_factor_sources_parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=DEFAULT_DATA_DIR,
+        help="Directory containing local CSV files. Defaults to data/sample/ashare_alpha/.",
+    )
+    compare_factor_sources_parser.add_argument(
+        "--config-dir",
+        type=Path,
+        default=None,
+        help="Directory containing ashare_alpha YAML configs. Defaults to configs/ashare_alpha/.",
+    )
+    compare_factor_sources_parser.add_argument(
+        "--left",
+        choices=["raw", "qfq", "hfq"],
+        default="raw",
+        help="Left factor price source. Default: raw.",
+    )
+    compare_factor_sources_parser.add_argument(
+        "--right",
+        choices=["raw", "qfq", "hfq"],
+        default="qfq",
+        help="Right factor price source. Default: qfq.",
+    )
+    compare_factor_sources_parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Output directory. Defaults to outputs/factors/compare_YYYYMMDD_HHMMSS.",
+    )
+    compare_factor_sources_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format. Default: text.",
+    )
+    compare_factor_sources_parser.set_defaults(handler=_cmd_compare_factor_price_sources)
 
     compute_events_parser = subparsers.add_parser("compute-events", help="Compute daily announcement event factors.")
     compute_events_parser.add_argument("--date", required=True, help="Trade date in YYYY-MM-DD format.")
@@ -2594,29 +2643,241 @@ def _cmd_compute_factors(args: argparse.Namespace) -> int:
         _print_validation_failure(validation_report, args.format)
         return 1
 
-    builder = FactorBuilder(
+    realism_bundle = OptionalRealismDataLoader(args.data_dir).load_all() if args.price_source != "raw" else None
+    records = FactorBuilder(
         config=config,
         daily_bars=adapter.load_daily_bars(),
         stock_master=adapter.load_stock_master(),
-    )
-    records = builder.build_for_date(trade_date)
-    output_path = args.output or Path("outputs") / "factors" / f"factor_daily_{trade_date.isoformat()}.csv"
+        price_source=args.price_source,
+        adjustment_factors=realism_bundle.adjustment_factors if realism_bundle is not None else None,
+        corporate_actions=realism_bundle.corporate_actions if realism_bundle is not None else None,
+    ).build_for_date(trade_date)
+    output_path = args.output or _factor_daily_output_path(trade_date, args.price_source)
     save_factor_csv(records, output_path)
     summary = summarize_factors(records)
     summary["output"] = str(output_path)
+    summary["price_source"] = args.price_source
+    summary["adjusted_used_count"] = sum(1 for record in records if record.adjusted_used)
+    summary["adjusted_issue_count"] = sum(1 for record in records if record.adjusted_quality_flags)
 
     if args.format == "json":
         print(json.dumps(summary, ensure_ascii=False, indent=2))
     else:
         print(f"Factors computed for {trade_date.isoformat()}")
+        print(f"Price source: {summary['price_source']}")
         print(f"Total stocks: {summary['total']}")
         print(f"Computable stocks: {summary['computable']}")
         print(f"Not computable stocks: {summary['not_computable']}")
+        print(f"Adjusted used count: {summary['adjusted_used_count']}")
+        print(f"Adjusted issue count: {summary['adjusted_issue_count']}")
         print("Missing reason counts:")
         for reason, count in summary["missing_reason_counts"].items():
             print(f"  {reason}: {count}")
         print(f"Output: {output_path}")
     return 0
+
+
+def _cmd_compare_factor_price_sources(args: argparse.Namespace) -> int:
+    trade_date = _parse_date(args.date)
+    config = load_project_config(args.config_dir)
+    adapter = LocalCsvAdapter(args.data_dir)
+    validation_report = adapter.validate_all()
+    if not validation_report.passed:
+        _print_validation_failure(validation_report, args.format)
+        return 1
+
+    daily_bars = adapter.load_daily_bars()
+    stock_master = adapter.load_stock_master()
+    realism_bundle = OptionalRealismDataLoader(args.data_dir).load_all()
+    left_records = FactorBuilder(
+        config=config,
+        daily_bars=daily_bars,
+        stock_master=stock_master,
+        price_source=args.left,
+        adjustment_factors=realism_bundle.adjustment_factors if args.left != "raw" else None,
+        corporate_actions=realism_bundle.corporate_actions if args.left != "raw" else None,
+    ).build_for_date(trade_date)
+    right_records = FactorBuilder(
+        config=config,
+        daily_bars=daily_bars,
+        stock_master=stock_master,
+        price_source=args.right,
+        adjustment_factors=realism_bundle.adjustment_factors if args.right != "raw" else None,
+        corporate_actions=realism_bundle.corporate_actions if args.right != "raw" else None,
+    ).build_for_date(trade_date)
+    rows = _compare_factor_records(left_records, right_records)
+    output_dir = args.output_dir or Path("outputs") / "factors" / f"compare_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = output_dir / "factor_price_source_compare.csv"
+    json_path = output_dir / "factor_price_source_compare.json"
+    md_path = output_dir / "factor_price_source_compare.md"
+    _save_factor_compare_csv(rows, csv_path)
+    payload = {
+        "trade_date": trade_date.isoformat(),
+        "left": args.left,
+        "right": args.right,
+        "total": len(rows),
+        "changed_close_above_ma20": sum(1 for row in rows if row["close_above_ma20_changed"]),
+        "changed_close_above_ma60": sum(1 for row in rows if row["close_above_ma60_changed"]),
+        "rows": rows,
+        "outputs": {"csv": str(csv_path), "json": str(json_path), "markdown": str(md_path)},
+    }
+    json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    md_path.write_text(_render_factor_compare_markdown(payload), encoding="utf-8")
+
+    if args.format == "json":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(f"Factor price source comparison for {trade_date.isoformat()}")
+        print(f"Left: {args.left}")
+        print(f"Right: {args.right}")
+        print(f"Rows: {len(rows)}")
+        print(f"close_above_ma20 changed: {payload['changed_close_above_ma20']}")
+        print(f"close_above_ma60 changed: {payload['changed_close_above_ma60']}")
+        print(f"Output dir: {output_dir}")
+    return 0
+
+
+def _factor_daily_output_path(trade_date: date, price_source: str) -> Path:
+    suffix = "" if price_source == "raw" else f"_{price_source}"
+    return Path("outputs") / "factors" / f"factor_daily_{trade_date.isoformat()}{suffix}.csv"
+
+
+def _compare_factor_records(left_records: list, right_records: list) -> list[dict[str, object]]:
+    left_by_code = {record.ts_code: record for record in left_records}
+    right_by_code = {record.ts_code: record for record in right_records}
+    rows: list[dict[str, object]] = []
+    for ts_code in sorted(set(left_by_code) | set(right_by_code)):
+        left = left_by_code.get(ts_code)
+        right = right_by_code.get(ts_code)
+        rows.append(
+            {
+                "ts_code": ts_code,
+                "left_price_source": left.price_source if left is not None else None,
+                "right_price_source": right.price_source if right is not None else None,
+                "left_is_computable": left.is_computable if left is not None else None,
+                "right_is_computable": right.is_computable if right is not None else None,
+                "momentum_5d_diff": _numeric_diff(left, right, "momentum_5d"),
+                "momentum_20d_diff": _numeric_diff(left, right, "momentum_20d"),
+                "momentum_60d_diff": _numeric_diff(left, right, "momentum_60d"),
+                "ma20_diff": _numeric_diff(left, right, "ma20"),
+                "ma60_diff": _numeric_diff(left, right, "ma60"),
+                "volatility_20d_diff": _numeric_diff(left, right, "volatility_20d"),
+                "max_drawdown_20d_diff": _numeric_diff(left, right, "max_drawdown_20d"),
+                "close_above_ma20_changed": _bool_changed(left, right, "close_above_ma20"),
+                "close_above_ma60_changed": _bool_changed(left, right, "close_above_ma60"),
+                "left_missing_reasons": ";".join(left.missing_reasons) if left is not None else "",
+                "right_missing_reasons": ";".join(right.missing_reasons) if right is not None else "",
+            }
+        )
+    return rows
+
+
+def _numeric_diff(left: object | None, right: object | None, field_name: str) -> float | None:
+    if left is None or right is None:
+        return None
+    left_value = getattr(left, field_name)
+    right_value = getattr(right, field_name)
+    if left_value is None or right_value is None:
+        return None
+    return right_value - left_value
+
+
+def _bool_changed(left: object | None, right: object | None, field_name: str) -> bool | None:
+    if left is None or right is None:
+        return None
+    left_value = getattr(left, field_name)
+    right_value = getattr(right, field_name)
+    if left_value is None or right_value is None:
+        return None
+    return left_value != right_value
+
+
+def _save_factor_compare_csv(rows: list[dict[str, object]], output_path: Path) -> None:
+    fieldnames = [
+        "ts_code",
+        "left_price_source",
+        "right_price_source",
+        "left_is_computable",
+        "right_is_computable",
+        "momentum_5d_diff",
+        "momentum_20d_diff",
+        "momentum_60d_diff",
+        "ma20_diff",
+        "ma60_diff",
+        "volatility_20d_diff",
+        "max_drawdown_20d_diff",
+        "close_above_ma20_changed",
+        "close_above_ma60_changed",
+        "left_missing_reasons",
+        "right_missing_reasons",
+    ]
+    with output_path.open("w", encoding="utf-8", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _render_factor_compare_markdown(payload: dict[str, object]) -> str:
+    rows = payload["rows"]
+    assert isinstance(rows, list)
+    largest_rows = sorted(rows, key=_row_max_abs_diff, reverse=True)[:10]
+    lines = [
+        "# Factor Price Source Comparison",
+        "",
+        f"- trade_date: {payload['trade_date']}",
+        f"- left: {payload['left']}",
+        f"- right: {payload['right']}",
+        f"- rows: {payload['total']}",
+        "",
+        "This report compares factor_daily values built from two price_source settings. It is for research only, does not constitute investment advice, and does not place orders automatically.",
+        "",
+        "## Largest Differences",
+        "",
+        "| ts_code | max_abs_diff | ma20_diff | ma60_diff | momentum_20d_diff | volatility_20d_diff |",
+        "| --- | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for row in largest_rows:
+        assert isinstance(row, dict)
+        lines.append(
+            "| "
+            f"{row['ts_code']} | "
+            f"{_format_optional_float(_row_max_abs_diff(row))} | "
+            f"{_format_optional_float(row['ma20_diff'])} | "
+            f"{_format_optional_float(row['ma60_diff'])} | "
+            f"{_format_optional_float(row['momentum_20d_diff'])} | "
+            f"{_format_optional_float(row['volatility_20d_diff'])} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Scope",
+            "",
+            "- Adjusted price sources only affect explicitly requested compute-factors runs.",
+            "- amount, turnover, limit_up, and limit_down statistics remain based on raw data.",
+            "- run-pipeline and run-backtest defaults are unchanged.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _row_max_abs_diff(row: dict[str, object]) -> float:
+    fields = [
+        "momentum_5d_diff",
+        "momentum_20d_diff",
+        "momentum_60d_diff",
+        "ma20_diff",
+        "ma60_diff",
+        "volatility_20d_diff",
+        "max_drawdown_20d_diff",
+    ]
+    values = [abs(value) for field in fields if isinstance((value := row.get(field)), int | float)]
+    return max(values) if values else 0.0
+
+
+def _format_optional_float(value: object) -> str:
+    return "-" if not isinstance(value, int | float) else f"{value:.8g}"
 
 
 def _cmd_compute_events(args: argparse.Namespace) -> int:
