@@ -18,6 +18,7 @@ from ashare_alpha.adjusted import (
     save_adjusted_validation_json,
     validate_adjusted_records,
 )
+from ashare_alpha.adjusted_research import AdjustedResearchRunner
 from ashare_alpha.audit import (
     LeakageAuditor,
     build_data_snapshot,
@@ -865,6 +866,52 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output format. Default: text.",
     )
     compare_backtest_parser.set_defaults(handler=_cmd_compare_backtest_price_sources)
+
+    adjusted_research_parser = subparsers.add_parser(
+        "adjusted-research-report",
+        help="Build a unified raw/qfq/hfq adjusted research comparison report.",
+    )
+    adjusted_research_parser.add_argument("--date", required=True, help="Target factor date in YYYY-MM-DD format.")
+    adjusted_research_parser.add_argument("--start", required=True, help="Backtest range start date in YYYY-MM-DD format.")
+    adjusted_research_parser.add_argument("--end", required=True, help="Backtest range end date in YYYY-MM-DD format.")
+    adjusted_research_parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=DEFAULT_DATA_DIR,
+        help="Directory containing local CSV files. Defaults to data/sample/ashare_alpha/.",
+    )
+    adjusted_research_parser.add_argument(
+        "--config-dir",
+        type=Path,
+        default=None,
+        help="Directory containing ashare_alpha YAML configs. Defaults to configs/ashare_alpha/.",
+    )
+    adjusted_research_parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Output directory. Defaults to outputs/adjusted_research/adjusted_research_YYYYMMDD_HHMMSS/.",
+    )
+    adjusted_research_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format. Default: text.",
+    )
+    adjusted_research_parser.add_argument(
+        "--record-experiment",
+        action="store_true",
+        help="Record this adjusted research report in the experiment registry.",
+    )
+    adjusted_research_parser.add_argument("--experiment-tag", action="append", default=[], help="Experiment tag. Can be repeated.")
+    adjusted_research_parser.add_argument("--experiment-notes", default=None, help="Optional experiment notes.")
+    adjusted_research_parser.add_argument(
+        "--experiment-registry-dir",
+        type=Path,
+        default=Path("outputs/experiments"),
+        help="Experiment registry directory. Default: outputs/experiments.",
+    )
+    adjusted_research_parser.set_defaults(handler=_cmd_adjusted_research_report)
 
     daily_report_parser = subparsers.add_parser("daily-report", help="Generate a daily research report.")
     daily_report_parser.add_argument("--date", required=True, help="Report date in YYYY-MM-DD format.")
@@ -3203,6 +3250,68 @@ def _cmd_daily_report(args: argparse.Namespace) -> int:
         print(f"High risk: {summary['high_risk_count']}")
         print(f"Output: {output_dir}")
     return 0
+
+
+def _cmd_adjusted_research_report(args: argparse.Namespace) -> int:
+    target_date = _parse_date(args.date)
+    start_date = _parse_date(args.start)
+    end_date = _parse_date(args.end)
+    if start_date >= end_date:
+        raise ValueError("start must be earlier than end")
+    config_dir = args.config_dir or _default_config_dir()
+    output_dir = args.output_dir or Path("outputs") / "adjusted_research" / f"adjusted_research_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    report = AdjustedResearchRunner(
+        target_date=target_date,
+        start_date=start_date,
+        end_date=end_date,
+        data_dir=args.data_dir,
+        config_dir=config_dir,
+        output_dir=output_dir,
+    ).run()
+    experiment_id = None
+    if args.record_experiment:
+        experiment = ExperimentRecorder(ExperimentRegistry(args.experiment_registry_dir)).record_completed_run(
+            command="adjusted-research-report",
+            command_args={
+                "date": args.date,
+                "start": args.start,
+                "end": args.end,
+                "data_dir": args.data_dir,
+                "config_dir": config_dir,
+                "output_dir": output_dir,
+            },
+            status=report.status,
+            output_dir=output_dir,
+            data_dir=args.data_dir,
+            config_dir=config_dir,
+            notes=args.experiment_notes,
+            tags=args.experiment_tag,
+        )
+        experiment_id = experiment.experiment_id
+    summary = {
+        "report_id": report.report_id,
+        "status": report.status,
+        "factor_comparison_count": len(report.factor_comparisons),
+        "backtest_comparison_count": len(report.backtest_comparisons),
+        "warning_count": len(report.warning_items),
+        "output_dir": str(output_dir),
+        "experiment_id": experiment_id,
+    }
+    if args.format == "json":
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
+    else:
+        print("Adjusted research report generated")
+        print(f"Report id: {summary['report_id']}")
+        print(f"Status: {summary['status']}")
+        if report.status == "PARTIAL":
+            print("Partial: adjusted research warnings were recorded; review adjusted_research_report.md.")
+        print(f"Factor comparisons: {summary['factor_comparison_count']}")
+        print(f"Backtest comparisons: {summary['backtest_comparison_count']}")
+        print(f"Warnings: {summary['warning_count']}")
+        print(f"Output: {output_dir}")
+        if experiment_id:
+            print(f"Experiment id: {experiment_id}")
+    return 1 if report.status == "FAILED" else 0
 
 
 def _cmd_backtest_report(args: argparse.Namespace) -> int:

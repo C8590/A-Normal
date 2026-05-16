@@ -18,6 +18,14 @@ class DashboardScanner:
         artifacts: list[DashboardArtifact] = []
         artifacts.extend(self._scan_pattern("pipeline", self.outputs_root / "pipelines", "**/manifest.json", self._pipeline_artifact))
         artifacts.extend(self._scan_pattern("backtest", self.outputs_root / "backtests", "**/metrics.json", self._backtest_artifact))
+        artifacts.extend(
+            self._scan_pattern(
+                "adjusted_research",
+                self.outputs_root / "adjusted_research",
+                "**/adjusted_research_report.json",
+                self._adjusted_research_artifact,
+            )
+        )
         artifacts.extend(self._scan_pattern("sweep", self.outputs_root / "sweeps", "**/sweep_result.json", self._sweep_artifact))
         artifacts.extend(
             self._scan_pattern("walkforward", self.outputs_root / "walkforward", "**/walkforward_result.json", self._walkforward_artifact)
@@ -103,6 +111,37 @@ class DashboardScanner:
         )
         name = f"{payload.get('start_date', path.parent.name)}..{payload.get('end_date', '')}".rstrip(".")
         return _artifact("backtest", f"backtest:{path.parent.name}", name, path, _created_at(path, payload), None, summary)
+
+    def _adjusted_research_artifact(self, path: Path, payload: dict[str, Any]) -> DashboardArtifact:
+        summary = _pick(
+            payload,
+            (
+                "report_id",
+                "target_date",
+                "start_date",
+                "end_date",
+                "status",
+                "output_dir",
+                "summary",
+            ),
+        )
+        factor_comparisons = payload.get("factor_comparisons", [])
+        backtest_comparisons = payload.get("backtest_comparisons", [])
+        warning_items = payload.get("warning_items", [])
+        summary["factor_comparison_count"] = len(factor_comparisons) if isinstance(factor_comparisons, list) else 0
+        summary["backtest_comparison_count"] = len(backtest_comparisons) if isinstance(backtest_comparisons, list) else 0
+        summary["warning_count"] = len(warning_items) if isinstance(warning_items, list) else 0
+        summary["warning_items"] = warning_items if isinstance(warning_items, list) else []
+        return _artifact(
+            "adjusted_research",
+            f"adjusted_research:{payload.get('report_id', path.parent.name)}",
+            str(payload.get("report_id") or path.parent.name),
+            path,
+            _created_at(path, payload),
+            payload.get("status"),
+            summary,
+            related_paths=[str(path.parent / "adjusted_research_report.md"), str(path.parent / "adjusted_research_summary.csv")],
+        )
 
     def _sweep_artifact(self, path: Path, payload: dict[str, Any]) -> DashboardArtifact:
         summary = _pick(payload, ("sweep_id", "sweep_name", "command", "total_variants", "success_count", "failed_count"))

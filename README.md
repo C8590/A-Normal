@@ -89,6 +89,18 @@ python -m ashare_alpha release-check --output-dir outputs/release/v0.1.0-mvp
 
 The check verifies version files, release docs, command matrix files, security flags, forbidden imports, suspicious live-order names, test/tool availability, and current release notes. It does not run heavy backtests, does not call external APIs, and does not connect to brokers. See `CHANGELOG.md`, `RELEASE_NOTES.md`, and `docs/RELEASE_PROCESS.md`.
 
+## Adjusted Research Comparison
+
+`adjusted-research-report` builds one offline report that compares raw, qfq, and hfq factor and backtest results:
+
+```bash
+python -m ashare_alpha adjusted-research-report --date 2026-03-20 --start 2026-01-05 --end 2026-03-20
+python -m ashare_alpha adjusted-research-report --date 2026-03-20 --start 2026-01-05 --end 2026-03-20 --format json
+python -m ashare_alpha adjusted-research-report --date 2026-03-20 --start 2026-01-05 --end 2026-03-20 --record-experiment
+```
+
+Outputs are written under `outputs/adjusted_research/`. qfq/hfq are research valuation bases only; execution constraints remain raw, the report is not investment advice, and the system does not connect to brokers or place orders.
+
 ## Configuration
 
 The new project reads only `configs/ashare_alpha/` by default:
