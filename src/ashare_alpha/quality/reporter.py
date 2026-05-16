@@ -200,6 +200,19 @@ def _coverage(
     calendar_dates = sorted(
         {item for item in (_parse_date(row.get("calendar_date")) for row in trade_calendar_rows or []) if item}
     )
+    trading_daily_keys = {
+        (row.get("ts_code", "").strip(), _parse_date(row.get("trade_date")))
+        for row in daily_rows
+        if row.get("ts_code", "").strip() and _parse_date(row.get("trade_date")) and _parse_bool(row.get("is_trading")) is True
+    }
+    qfq_factor_keys = {
+        (row.get("ts_code", "").strip(), _parse_date(row.get("trade_date")))
+        for row in adjustment_rows or []
+        if row.get("ts_code", "").strip()
+        and _parse_date(row.get("trade_date"))
+        and str(row.get("adj_type", "")).strip() == "qfq"
+    }
+    covered_factor_keys = trading_daily_keys & qfq_factor_keys
     return {
         "stock_count": len(stock_rows),
         "daily_bar_rows": len(daily_rows),
@@ -215,6 +228,11 @@ def _coverage(
         "stock_status_history_rows": len(stock_status_rows or []),
         "adjustment_factor_rows": len(adjustment_rows or []),
         "corporate_action_rows": len(corporate_action_rows or []),
+        "adjustment_factor_trading_bar_count": len(trading_daily_keys),
+        "adjustment_factor_covered_trading_bar_count": len(covered_factor_keys),
+        "adjustment_factor_coverage_rate": (
+            len(covered_factor_keys) / len(trading_daily_keys) if trading_daily_keys else None
+        ),
     }
 
 
@@ -230,3 +248,12 @@ def _parse_date(value: Any) -> date | None:
         return date.fromisoformat(str(value).strip())
     except ValueError:
         return None
+
+
+def _parse_bool(value: Any) -> bool | None:
+    text = "" if value is None else str(value).strip().lower()
+    if text in {"true", "1", "yes", "y"}:
+        return True
+    if text in {"false", "0", "no", "n"}:
+        return False
+    return None

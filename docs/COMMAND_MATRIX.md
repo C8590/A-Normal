@@ -1,7 +1,7 @@
 # Command Matrix
 
-- generated_at: 2026-05-15T20:49:17.335281
-- command_count: 51
+- generated_at: 2026-05-16T13:00:13.667047
+- command_count: 52
 
 This matrix documents local offline research commands. It does not introduce external API calls, broker integration, web scraping, or live trading.
 
@@ -52,6 +52,7 @@ This matrix documents local offline research commands. It does not introduce ext
 | list-imports | 列出版本化导入。 | - | `python -m ashare_alpha list-imports` | stdout | 只读本地索引。 |
 | inspect-import | 查看一个导入版本。 | --source-name --data-version | `python -m ashare_alpha inspect-import --source-name local_csv --data-version sample_v1` | stdout | 只读本地 manifest。 |
 | quality-report | 生成数据质量报告。 | - | `python -m ashare_alpha quality-report` | outputs/quality/... | 只检查本地数据。 |
+| build-adjusted-bars | 生成可审计的 raw/qfq/hfq 复权行情。 | --date 或 --start --end | `python -m ashare_alpha build-adjusted-bars --date 2026-03-20 --adj-type qfq` | outputs/adjusted/... | 只读本地 CSV，不改变 pipeline 默认逻辑，不联网、不接券商、不下单。 |
 | audit-leakage | 运行 point-in-time 泄漏审计。 | --date 或 --start --end | `python -m ashare_alpha audit-leakage --date 2026-03-20` | outputs/audit/... | 不改变研究逻辑。 |
 
 ## 研究

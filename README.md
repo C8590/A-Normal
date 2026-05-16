@@ -150,6 +150,18 @@ python -m ashare_alpha check-trading-calendar --start 2026-01-01 --end 2026-03-3
 
 When present, the optional files enhance `quality-report` and `audit-leakage`; they do not change strategy, backtest, signal, or probability model logic. See `docs/DATA_REALISM_SPEC.md`.
 
+### Adjusted Daily Bars
+
+`build-adjusted-bars` generates auditable `raw`, `qfq`, or `hfq` daily bars under `outputs/adjusted/` by combining local `daily_bar.csv` with optional `adjustment_factor.csv`. It is an offline research artifact generator only: it does not change factor, backtest, probability, or pipeline defaults.
+
+```bash
+python -m ashare_alpha build-adjusted-bars --date 2026-03-20 --adj-type qfq
+python -m ashare_alpha build-adjusted-bars --start 2026-01-05 --end 2026-03-20 --adj-type qfq
+python -m ashare_alpha build-adjusted-bars --start 2026-01-05 --end 2026-03-20 --adj-type raw
+```
+
+The report states that adjusted prices are generated from input factors for research use, are not official exchange-adjusted prices, are not investment advice, and never submit orders. See `docs/ADJUSTED_PRICE_SPEC.md`.
+
 Inspect registered data source metadata:
 
 ```bash
