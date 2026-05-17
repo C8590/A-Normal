@@ -65,5 +65,8 @@ class PipelineManifest(PipelineModel):
     probability_csv_path: str | None = None
     leakage_audit_path: str | None = None
     quality_report_path: str | None = None
+    security_scan_path: str | None = None
+    gate_decision: str | None = None
+    gate_report_path: str | None = None
 
     disclaimer: str = PIPELINE_DISCLAIMER

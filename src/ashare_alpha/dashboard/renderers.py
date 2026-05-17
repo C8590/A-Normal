@@ -24,6 +24,7 @@ def render_dashboard_markdown(index: DashboardIndex, summary: DashboardSummary) 
         ("pipeline", summary.latest_pipeline),
         ("backtest", summary.latest_backtest),
         ("adjusted_research", summary.latest_adjusted_research),
+        ("research_gate", summary.latest_research_gate),
         ("sweep", summary.latest_sweep),
         ("walkforward", summary.latest_walkforward),
         ("candidate_selection", summary.latest_candidate_selection),
@@ -43,15 +44,22 @@ def render_dashboard_markdown(index: DashboardIndex, summary: DashboardSummary) 
             ),
         ]
     )
-    lines.extend(["", "## 6. Latest Sweep", *_detail_lines(summary.latest_sweep, ("total_variants", "success_count", "failed_count"))])
-    lines.extend(["", "## 7. Latest Walk-forward", *_detail_lines(summary.latest_walkforward, ("fold_count", "success_count"))])
+    lines.extend(
+        [
+            "",
+            "## 6. Latest Research Gate",
+            *_detail_lines(summary.latest_research_gate, ("overall_decision", "blocker_count", "warning_count", "issue_count")),
+        ]
+    )
+    lines.extend(["", "## 7. Latest Sweep", *_detail_lines(summary.latest_sweep, ("total_variants", "success_count", "failed_count"))])
+    lines.extend(["", "## 8. Latest Walk-forward", *_detail_lines(summary.latest_walkforward, ("fold_count", "success_count"))])
     if summary.latest_walkforward:
         stability = summary.latest_walkforward.summary.get("stability_metrics", {})
         if isinstance(stability, dict):
             lines.append(f"- positive_return_ratio: {_value(stability.get('positive_return_ratio'))}")
         warnings = summary.latest_walkforward.summary.get("overfit_warnings", [])
         lines.append(f"- overfit_warnings: {_value(warnings)}")
-    lines.extend(["", "## 8. Candidates"])
+    lines.extend(["", "## 9. Candidates"])
     if summary.top_candidates:
         lines.extend(["| rank | candidate_id | name | total_score | recommendation | filter_reasons |", "| ---: | --- | --- | ---: | --- | --- |"])
         for rank, candidate in enumerate(summary.top_candidates, start=1):
@@ -66,7 +74,7 @@ def render_dashboard_markdown(index: DashboardIndex, summary: DashboardSummary) 
             )
     else:
         lines.append("- none")
-    lines.extend(["", "## 9. Recent Experiments"])
+    lines.extend(["", "## 10. Recent Experiments"])
     if summary.recent_experiments:
         lines.extend(["| experiment_id | command | status | data | tags |", "| --- | --- | --- | --- | --- |"])
         for experiment in summary.recent_experiments:
@@ -81,7 +89,7 @@ def render_dashboard_markdown(index: DashboardIndex, summary: DashboardSummary) 
             )
     else:
         lines.append("- none")
-    lines.extend(["", "## 10. Warnings"])
+    lines.extend(["", "## 11. Warnings"])
     if summary.warning_items:
         for item in summary.warning_items:
             lines.append(f"- [{item.get('artifact_type')}] {item.get('name')}: {item.get('message')} ({item.get('path')})")
@@ -90,7 +98,7 @@ def render_dashboard_markdown(index: DashboardIndex, summary: DashboardSummary) 
     lines.extend(
         [
             "",
-            "## 11. Notes",
+            "## 12. Notes",
             "- Dashboard only summarizes local research artifacts.",
             "- 不构成投资建议",
             "- It does not guarantee future returns.",

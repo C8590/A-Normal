@@ -60,6 +60,9 @@ class CandidateSelectionReport(CandidateModel):
     scores: list[CandidateScore] = Field(default_factory=list)
     summary: str = Field(min_length=1)
     candidates: list[CandidateRecord] = Field(default_factory=list)
+    gate_report_path: str | None = None
+    gate_decision: str | None = None
+    gate_message: str | None = None
 
     @model_validator(mode="after")
     def validate_counts(self) -> CandidateSelectionReport:

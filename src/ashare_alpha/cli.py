@@ -77,6 +77,15 @@ from ashare_alpha.experiments import (
 )
 from ashare_alpha.factors import FactorBuilder, save_factor_csv, summarize_factors
 from ashare_alpha.frontend import collect_frontend_data, host_warning, save_frontend_site, serve_frontend
+from ashare_alpha.gates import (
+    DEFAULT_GATE_CONFIG_PATH,
+    ResearchGateEvaluator,
+    load_research_gate_report_json,
+    load_research_quality_gate_config,
+    save_research_gate_issues_csv,
+    save_research_gate_report_json,
+    save_research_gate_report_md,
+)
 from ashare_alpha.importing import ImportJob, load_import_manifest, normalize_source_name, validate_data_version
 from ashare_alpha.pipeline import PipelineRunner, save_pipeline_manifest, save_pipeline_summary_md
 from ashare_alpha.probability import (
@@ -158,6 +167,50 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output format. Default: text.",
     )
     release_check_parser.set_defaults(handler=_cmd_release_check)
+
+    evaluate_gates_parser = subparsers.add_parser(
+        "evaluate-research-gates",
+        help="Evaluate local research artifacts with quality gates.",
+    )
+    evaluate_gates_parser.add_argument(
+        "--source",
+        type=Path,
+        action="append",
+        required=True,
+        help="Research artifact JSON path. Can be repeated.",
+    )
+    evaluate_gates_parser.add_argument(
+        "--gate-config",
+        type=Path,
+        default=DEFAULT_GATE_CONFIG_PATH,
+        help="Research quality gates YAML path. Default: configs/ashare_alpha/gates/research_quality_gates.yaml.",
+    )
+    evaluate_gates_parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Output directory. Defaults to outputs/gates/gates_YYYYMMDD_HHMMSS.",
+    )
+    evaluate_gates_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format. Default: text.",
+    )
+    evaluate_gates_parser.add_argument(
+        "--record-experiment",
+        action="store_true",
+        help="Record this gate evaluation in the experiment registry.",
+    )
+    evaluate_gates_parser.add_argument("--experiment-tag", action="append", default=[], help="Experiment tag. Can be repeated.")
+    evaluate_gates_parser.add_argument("--experiment-notes", default=None, help="Optional experiment notes.")
+    evaluate_gates_parser.add_argument(
+        "--experiment-registry-dir",
+        type=Path,
+        default=Path("outputs/experiments"),
+        help="Experiment registry directory. Default: outputs/experiments.",
+    )
+    evaluate_gates_parser.set_defaults(handler=_cmd_evaluate_research_gates)
 
     show_config_parser = subparsers.add_parser("show-config", help="Load, validate, and print project config.")
     show_config_parser.add_argument(
@@ -439,6 +492,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output directory. Defaults to outputs/candidates/selection_YYYYMMDD_HHMMSS.",
     )
     select_candidates_parser.add_argument(
+        "--gate-report",
+        type=Path,
+        default=None,
+        help="Optional research_gate_report.json to annotate candidate selection risk.",
+    )
+    select_candidates_parser.add_argument(
         "--format",
         choices=["text", "json"],
         default="text",
@@ -453,6 +512,12 @@ def build_parser() -> argparse.ArgumentParser:
     promote_candidate_parser.add_argument("--selection", type=Path, required=True, help="Path to candidate_selection.json.")
     promote_candidate_parser.add_argument("--candidate-id", required=True, help="Candidate id from candidate_selection.json.")
     promote_candidate_parser.add_argument("--promoted-name", required=True, help="Snapshot directory name.")
+    promote_candidate_parser.add_argument(
+        "--gate-report",
+        type=Path,
+        default=None,
+        help="Optional research_gate_report.json. BLOCK refuses promotion; WARN prints a warning.",
+    )
     promote_candidate_parser.add_argument(
         "--target-root",
         type=Path,
@@ -1449,6 +1514,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run configuration security scan before data validation.",
     )
     run_pipeline_parser.add_argument(
+        "--evaluate-gates",
+        action="store_true",
+        help="Evaluate research quality gates after pipeline completion without changing default pipeline behavior.",
+    )
+    run_pipeline_parser.add_argument(
         "--output-dir",
         type=Path,
         default=None,
@@ -1530,6 +1600,64 @@ def _cmd_release_check(args: argparse.Namespace) -> int:
         print(f"PASS / WARN / FAIL: {payload['pass_count']} / {payload['warn_count']} / {payload['fail_count']}")
         print(f"output_dir: {output_dir}")
     return 1 if manifest.fail_count > 0 else 0
+
+
+def _cmd_evaluate_research_gates(args: argparse.Namespace) -> int:
+    output_dir = args.output_dir or Path("outputs") / "gates" / f"gates_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    gate_config = load_research_quality_gate_config(args.gate_config)
+    report = ResearchGateEvaluator(
+        gate_config=gate_config,
+        artifact_paths=args.source,
+        gate_config_path=args.gate_config,
+    ).evaluate()
+    save_research_gate_report_json(report, output_dir / "research_gate_report.json")
+    save_research_gate_report_md(report, output_dir / "research_gate_report.md")
+    save_research_gate_issues_csv(report, output_dir / "research_gate_issues.csv")
+
+    experiment_id = None
+    if args.record_experiment:
+        experiment = ExperimentRecorder(ExperimentRegistry(args.experiment_registry_dir)).record_completed_run(
+            command="evaluate-research-gates",
+            command_args={
+                "source": args.source,
+                "gate_config": args.gate_config,
+                "output_dir": output_dir,
+            },
+            status=report.overall_decision,
+            output_dir=output_dir,
+            data_dir=None,
+            config_dir=args.gate_config.parent,
+            notes=args.experiment_notes,
+            tags=args.experiment_tag,
+        )
+        experiment_id = experiment.experiment_id
+
+    payload = {
+        "overall_decision": report.overall_decision,
+        "issue_count": report.issue_count,
+        "blocker_count": report.blocker_count,
+        "warning_count": report.warning_count,
+        "output_dir": str(output_dir),
+        "experiment_id": experiment_id,
+    }
+    if args.format == "json":
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print("Research quality gates evaluated")
+        print(f"Overall decision: {payload['overall_decision']}")
+        print(f"Issue count: {payload['issue_count']}")
+        print(f"Blockers: {payload['blocker_count']}")
+        print(f"Warnings: {payload['warning_count']}")
+        print(f"Output: {output_dir}")
+        if report.overall_decision == "BLOCK":
+            print("Gate result BLOCK: not recommended to advance, release, or promote.")
+        elif report.overall_decision == "WARN":
+            print("Gate result WARN: manual review is required.")
+        else:
+            print("Gate result PASS: research quality gates passed; this is not a return guarantee.")
+        if experiment_id:
+            print(f"Experiment id: {experiment_id}")
+    return 1 if report.overall_decision == "BLOCK" else 0
 
 
 def _cmd_run_sweep(args: argparse.Namespace) -> int:
@@ -1655,6 +1783,25 @@ def _cmd_show_walkforward(args: argparse.Namespace) -> int:
 def _cmd_select_candidates(args: argparse.Namespace) -> int:
     output_dir = args.output_dir or Path("outputs") / "candidates" / f"selection_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     report = CandidateSelector(rules_path=args.rules, sources=args.source).select()
+    gate_decision = None
+    gate_message = None
+    if args.gate_report is not None:
+        gate_report = load_research_gate_report_json(args.gate_report)
+        gate_decision = gate_report.overall_decision
+        if gate_report.overall_decision == "BLOCK":
+            gate_message = "输入研究产物未通过质量门禁，不建议晋级。"
+        elif gate_report.overall_decision == "WARN":
+            gate_message = "输入研究产物存在质量门禁 warning，需要人工复核。"
+        else:
+            gate_message = "输入研究产物通过质量门禁。"
+        report = report.model_copy(
+            update={
+                "gate_report_path": str(args.gate_report),
+                "gate_decision": gate_decision,
+                "gate_message": gate_message,
+                "summary": f"{report.summary} {gate_message}",
+            }
+        )
     save_candidate_selection_report_json(report, output_dir / "candidate_selection.json")
     save_candidate_selection_report_md(report, output_dir / "candidate_selection.md")
     save_candidate_scores_csv(report, output_dir / "candidate_scores.csv")
@@ -1665,6 +1812,8 @@ def _cmd_select_candidates(args: argparse.Namespace) -> int:
         "advance_count": report.advance_count,
         "review_count": report.review_count,
         "reject_count": report.reject_count,
+        "gate_decision": gate_decision,
+        "gate_message": gate_message,
         "top_candidate": top_candidate.model_dump(mode="json") if top_candidate else None,
         "output_dir": str(output_dir),
     }
@@ -1677,6 +1826,9 @@ def _cmd_select_candidates(args: argparse.Namespace) -> int:
         print(f"Advance: {payload['advance_count']}")
         print(f"Review: {payload['review_count']}")
         print(f"Reject: {payload['reject_count']}")
+        if gate_message:
+            print(f"Gate decision: {gate_decision}")
+            print(f"Gate note: {gate_message}")
         if top_candidate:
             print(f"Top candidate: {top_candidate.candidate_id} ({top_candidate.total_score:.2f}, {top_candidate.recommendation})")
         print(f"Output: {output_dir}")
@@ -1686,6 +1838,29 @@ def _cmd_select_candidates(args: argparse.Namespace) -> int:
 
 def _cmd_promote_candidate_config(args: argparse.Namespace) -> int:
     report = load_candidate_selection_report_json(args.selection)
+    gate_decision = None
+    gate_message = None
+    if args.gate_report is not None:
+        gate_report = load_research_gate_report_json(args.gate_report)
+        gate_decision = gate_report.overall_decision
+        if gate_report.overall_decision == "BLOCK":
+            payload = {
+                "status": "FAILED",
+                "candidate_id": args.candidate_id,
+                "target_config_dir": str(args.target_root / args.promoted_name),
+                "message": "输入研究产物未通过质量门禁，不建议晋级。",
+                "gate_decision": gate_decision,
+            }
+            if args.format == "json":
+                print(json.dumps(payload, ensure_ascii=False, indent=2))
+            else:
+                print("Status: FAILED")
+                print(f"Candidate id: {args.candidate_id}")
+                print(f"Target config dir: {payload['target_config_dir']}")
+                print(f"Message: {payload['message']}")
+            return 1
+        if gate_report.overall_decision == "WARN":
+            gate_message = "Gate decision WARN: promotion is allowed, but manual review is required."
     candidate = next((item for item in report.candidates if item.candidate_id == args.candidate_id), None)
     if candidate is None:
         raise ValueError(f"candidate-id not found in selection: {args.candidate_id}")
@@ -1700,6 +1875,8 @@ def _cmd_promote_candidate_config(args: argparse.Namespace) -> int:
         "candidate_id": result.candidate_id,
         "target_config_dir": result.target_config_dir,
         "message": result.message,
+        "gate_decision": gate_decision,
+        "gate_message": gate_message,
     }
     if args.format == "json":
         print(json.dumps(payload, ensure_ascii=False, indent=2))
@@ -1708,6 +1885,8 @@ def _cmd_promote_candidate_config(args: argparse.Namespace) -> int:
         print(f"Candidate id: {result.candidate_id}")
         print(f"Target config dir: {result.target_config_dir}")
         print(f"Message: {result.message}")
+        if gate_message:
+            print(gate_message)
     return 0 if result.status == "SUCCESS" else 1
 
 
@@ -3585,6 +3764,29 @@ def _cmd_run_pipeline(args: argparse.Namespace) -> int:
     ).run()
     save_pipeline_manifest(manifest, output_dir / "manifest.json")
     save_pipeline_summary_md(manifest, output_dir / "pipeline_summary.md")
+    if args.evaluate_gates:
+        gate_sources = [output_dir / "manifest.json"]
+        for path in (manifest.quality_report_path, manifest.leakage_audit_path, manifest.security_scan_path):
+            if path:
+                gate_sources.append(Path(path))
+        gate_output_dir = output_dir / "gates"
+        gate_config = load_research_quality_gate_config(DEFAULT_GATE_CONFIG_PATH)
+        gate_report = ResearchGateEvaluator(
+            gate_config=gate_config,
+            artifact_paths=gate_sources,
+            gate_config_path=DEFAULT_GATE_CONFIG_PATH,
+        ).evaluate()
+        save_research_gate_report_json(gate_report, gate_output_dir / "research_gate_report.json")
+        save_research_gate_report_md(gate_report, gate_output_dir / "research_gate_report.md")
+        save_research_gate_issues_csv(gate_report, gate_output_dir / "research_gate_issues.csv")
+        manifest = manifest.model_copy(
+            update={
+                "gate_decision": gate_report.overall_decision,
+                "gate_report_path": str(gate_output_dir / "research_gate_report.json"),
+            }
+        )
+        save_pipeline_manifest(manifest, output_dir / "manifest.json")
+        save_pipeline_summary_md(manifest, output_dir / "pipeline_summary.md")
     experiment_id = None
     if args.record_experiment:
         experiment = ExperimentRecorder(ExperimentRegistry(args.experiment_registry_dir)).record_completed_run(
@@ -3598,6 +3800,7 @@ def _cmd_run_pipeline(args: argparse.Namespace) -> int:
                 "audit_leakage": args.audit_leakage,
                 "quality_report": args.quality_report,
                 "check_security": args.check_security,
+                "evaluate_gates": args.evaluate_gates,
                 "output_dir": output_dir,
             },
             status=manifest.status,
@@ -3619,6 +3822,8 @@ def _cmd_run_pipeline(args: argparse.Namespace) -> int:
         "high_risk_count": manifest.high_risk_count,
         "market_regime": manifest.market_regime,
         "probability_predictable_count": manifest.probability_predictable_count,
+        "gate_decision": manifest.gate_decision,
+        "gate_report_path": manifest.gate_report_path,
         "output_dir": str(output_dir),
         "experiment_id": experiment_id,
     }
@@ -3637,6 +3842,9 @@ def _cmd_run_pipeline(args: argparse.Namespace) -> int:
         print(f"High risk: {summary['high_risk_count']}")
         print(f"Market regime: {summary['market_regime']}")
         print(f"Probability predictable: {summary['probability_predictable_count']}")
+        if manifest.gate_decision:
+            print(f"Gate decision: {manifest.gate_decision}")
+            print(f"Gate report: {manifest.gate_report_path}")
         print(f"Output: {output_dir}")
         if experiment_id:
             print(f"Experiment id: {experiment_id}")
