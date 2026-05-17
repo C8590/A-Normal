@@ -285,6 +285,7 @@ class PipelineRunner:
         report_md = security_dir / "security_scan_report.md"
         save_security_scan_report_json(report, report_json)
         save_security_scan_report_md(report, report_md)
+        self.paths["security_scan"] = report_json
         return [report_json, report_md], {
             "passed": report.passed,
             "total_issues": report.total_issues,
@@ -416,6 +417,7 @@ class PipelineRunner:
             probability_csv_path=str(self.paths["probability"]) if "probability" in self.paths else None,
             leakage_audit_path=str(self.paths["leakage_audit"]) if "leakage_audit" in self.paths else None,
             quality_report_path=str(self.paths["quality_report"]) if "quality_report" in self.paths else None,
+            security_scan_path=str(self.paths["security_scan"]) if "security_scan" in self.paths else None,
             disclaimer=PIPELINE_DISCLAIMER,
         )
 

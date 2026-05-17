@@ -12,11 +12,20 @@ def build_dashboard_summary(index: DashboardIndex) -> DashboardSummary:
     latest_sweep = _latest(index, "sweep")
     latest_walkforward = _latest(index, "walkforward")
     latest_adjusted_research = _latest(index, "adjusted_research")
+    latest_research_gate = _latest(index, "research_gate")
     latest_candidate_selection = _latest(index, "candidate_selection")
     top_candidates = _top_candidates(latest_candidate_selection)
     recent_experiments = _recent_experiments(index)
     warning_items = _warning_items(index)
-    summary_text = _summary_text(index, latest_pipeline, latest_walkforward, latest_adjusted_research, top_candidates, warning_items)
+    summary_text = _summary_text(
+        index,
+        latest_pipeline,
+        latest_walkforward,
+        latest_adjusted_research,
+        latest_research_gate,
+        top_candidates,
+        warning_items,
+    )
     return DashboardSummary(
         generated_at=datetime.now(),
         outputs_root=index.outputs_root,
@@ -25,6 +34,7 @@ def build_dashboard_summary(index: DashboardIndex) -> DashboardSummary:
         latest_sweep=latest_sweep,
         latest_walkforward=latest_walkforward,
         latest_adjusted_research=latest_adjusted_research,
+        latest_research_gate=latest_research_gate,
         latest_candidate_selection=latest_candidate_selection,
         top_candidates=top_candidates,
         recent_experiments=recent_experiments,
@@ -104,6 +114,11 @@ def _warning_items(index: DashboardIndex) -> list[dict[str, Any]]:
                 warnings.append(_warning(artifact, f"adjusted_research status is {artifact.status}.", {"warning_items": warning_items or []}))
             elif warning_count > 0:
                 warnings.append(_warning(artifact, "adjusted_research has research warnings.", {"warning_items": warning_items or []}))
+        elif artifact.artifact_type == "research_gate":
+            if artifact.status == "BLOCK":
+                warnings.append(_warning(artifact, "research quality gate decision is BLOCK."))
+            elif artifact.status == "WARN":
+                warnings.append(_warning(artifact, "research quality gate decision is WARN."))
         elif artifact.artifact_type == "unknown":
             warnings.append(_warning(artifact, "research artifact could not be read."))
     return warnings
@@ -127,6 +142,7 @@ def _summary_text(
     latest_pipeline: DashboardArtifact | None,
     latest_walkforward: DashboardArtifact | None,
     latest_adjusted_research: DashboardArtifact | None,
+    latest_research_gate: DashboardArtifact | None,
     top_candidates: list[dict[str, Any]],
     warning_items: list[dict[str, Any]],
 ) -> str:
@@ -146,6 +162,13 @@ def _summary_text(
             f"Latest adjusted research status is {latest_adjusted_research.status or 'unknown'} "
             f"with {_int(latest_adjusted_research.summary.get('warning_count'))} warning items."
         )
+    gate_text = "No research quality gate report has been scanned."
+    if latest_research_gate is not None:
+        gate_text = (
+            f"Latest research gate decision is {latest_research_gate.status or 'unknown'} "
+            f"with {_int(latest_research_gate.summary.get('blocker_count'))} blockers and "
+            f"{_int(latest_research_gate.summary.get('warning_count'))} warnings."
+        )
     risk_text = "No quality, security, or audit errors were found in this summary."
     if any(item.get("artifact_type") in {"quality_report", "leakage_audit", "security_scan"} for item in warning_items):
         risk_text = "Quality, security, or audit errors exist and should be reviewed first."
@@ -154,7 +177,7 @@ def _summary_text(
         candidate_text = "Some research candidates are marked for the next validation round."
     return (
         f"Scanned {index.artifact_count} research artifacts. "
-        f"{pipeline_text} {wf_text} {adjusted_text} {risk_text} {candidate_text} "
+        f"{pipeline_text} {wf_text} {adjusted_text} {gate_text} {risk_text} {candidate_text} "
         "Dashboard is for research summary only; 不构成投资建议; no future return is guaranteed, and no automatic orders are placed."
     )
 

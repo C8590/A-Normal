@@ -26,6 +26,22 @@ class DashboardScanner:
                 self._adjusted_research_artifact,
             )
         )
+        artifacts.extend(
+            self._scan_pattern(
+                "research_gate",
+                self.outputs_root / "gates",
+                "**/research_gate_report.json",
+                self._research_gate_artifact,
+            )
+        )
+        artifacts.extend(
+            self._scan_pattern(
+                "research_gate",
+                self.outputs_root / "pipelines",
+                "**/gates/research_gate_report.json",
+                self._research_gate_artifact,
+            )
+        )
         artifacts.extend(self._scan_pattern("sweep", self.outputs_root / "sweeps", "**/sweep_result.json", self._sweep_artifact))
         artifacts.extend(
             self._scan_pattern("walkforward", self.outputs_root / "walkforward", "**/walkforward_result.json", self._walkforward_artifact)
@@ -141,6 +157,30 @@ class DashboardScanner:
             payload.get("status"),
             summary,
             related_paths=[str(path.parent / "adjusted_research_report.md"), str(path.parent / "adjusted_research_summary.csv")],
+        )
+
+    def _research_gate_artifact(self, path: Path, payload: dict[str, Any]) -> DashboardArtifact:
+        summary = _pick(
+            payload,
+            (
+                "report_id",
+                "overall_decision",
+                "issue_count",
+                "blocker_count",
+                "warning_count",
+                "info_count",
+                "summary",
+            ),
+        )
+        return _artifact(
+            "research_gate",
+            f"research_gate:{payload.get('report_id', path.parent.name)}",
+            str(payload.get("report_id") or path.parent.name),
+            path,
+            _created_at(path, payload),
+            payload.get("overall_decision"),
+            summary,
+            related_paths=[str(path.parent / "research_gate_report.md"), str(path.parent / "research_gate_issues.csv")],
         )
 
     def _sweep_artifact(self, path: Path, payload: dict[str, Any]) -> DashboardArtifact:

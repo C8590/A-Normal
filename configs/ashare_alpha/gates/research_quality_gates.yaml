@@ -1,0 +1,50 @@
+gate_name: default_research_quality_gates
+
+data_quality:
+  block_on_error: true
+  max_warning_count: 50
+
+leakage_audit:
+  block_on_error: true
+  max_warning_count: 20
+
+security:
+  block_on_error: true
+  max_warning_count: 0
+
+pipeline:
+  allowed_status:
+    - SUCCESS
+  min_allowed_universe_count: 1
+  max_high_risk_count: null
+
+backtest:
+  require_trades_for_effectiveness_claim: true
+  min_filled_trade_count: 1
+  max_drawdown_block_threshold: -0.30
+  min_sharpe_warn_threshold: 0.0
+
+sweep:
+  min_success_count: 1
+  max_failed_ratio: 0.5
+
+walkforward:
+  min_success_fold_count: 3
+  min_positive_return_ratio: 0.5
+  max_worst_drawdown: -0.20
+  block_if_all_no_trade: true
+
+candidate_selection:
+  min_advance_count: 1
+  block_if_no_candidates: true
+
+adjusted_research:
+  allow_partial: true
+  block_on_failed: true
+  warn_on_partial: true
+  max_warning_count: 20
+  min_factor_comparison_count: 1
+  min_backtest_comparison_count: 1
+
+promotion:
+  block_promote_on_gate_block: true

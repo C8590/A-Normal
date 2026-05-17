@@ -12,6 +12,7 @@ JSON_PATH = PROJECT_ROOT / "outputs" / "dev" / "command_matrix.json"
 
 
 COMMAND_MATRIX: list[dict[str, Any]] = [
+    {"category": "Release", "command": "evaluate-research-gates", "purpose": "Evaluate research quality gates for local artifacts.", "required_args": "--source", "common_example": "python -m ashare_alpha evaluate-research-gates --source outputs/pipelines/pipeline_2026-03-20/manifest.json", "output_location": "outputs/gates/...", "safety_note": "Local quality control only; not investment advice, no external API, no broker connection, and no live orders."},
     {"category": "Release", "command": "show-version", "purpose": "显示当前 MVP 版本、包路径和 Python 版本。", "required_args": "-", "common_example": "python -m ashare_alpha show-version", "output_location": "stdout", "safety_note": "只读版本信息，不联网。"},
     {"category": "Release", "command": "release-check", "purpose": "运行本地发布检查并生成 release manifest/checklist。", "required_args": "-", "common_example": "python -m ashare_alpha release-check", "output_location": "outputs/release/...", "safety_note": "只做本地文件与安全边界检查，不运行重型回测。"},
     {"category": "基础", "command": "show-config", "purpose": "加载并打印项目配置。", "required_args": "-", "common_example": "python -m ashare_alpha show-config", "output_location": "stdout", "safety_note": "只读配置，不联网。"},

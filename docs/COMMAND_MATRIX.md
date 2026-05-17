@@ -1,7 +1,7 @@
 # Command Matrix
 
-- generated_at: 2026-05-16T20:43:10.144720
-- command_count: 55
+- generated_at: 2026-05-16T23:19:58.145363
+- command_count: 56
 
 This matrix documents local offline research commands. It does not introduce external API calls, broker integration, web scraping, or live trading.
 
@@ -9,6 +9,7 @@ This matrix documents local offline research commands. It does not introduce ext
 
 | command | purpose | required args | common example | output location | safety note |
 | --- | --- | --- | --- | --- | --- |
+| evaluate-research-gates | Evaluate research quality gates for local artifacts. | --source | `python -m ashare_alpha evaluate-research-gates --source outputs/pipelines/pipeline_2026-03-20/manifest.json` | outputs/gates/... | Local quality control only; not investment advice, no external API, no broker connection, and no live orders. |
 | show-version | 显示当前 MVP 版本、包路径和 Python 版本。 | - | `python -m ashare_alpha show-version` | stdout | 只读版本信息，不联网。 |
 | release-check | 运行本地发布检查并生成 release manifest/checklist。 | - | `python -m ashare_alpha release-check` | outputs/release/... | 只做本地文件与安全边界检查，不运行重型回测。 |
 

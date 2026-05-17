@@ -89,6 +89,23 @@ python -m ashare_alpha release-check --output-dir outputs/release/v0.1.0-mvp
 
 The check verifies version files, release docs, command matrix files, security flags, forbidden imports, suspicious live-order names, test/tool availability, and current release notes. It does not run heavy backtests, does not call external APIs, and does not connect to brokers. See `CHANGELOG.md`, `RELEASE_NOTES.md`, and `docs/RELEASE_PROCESS.md`.
 
+## Research Quality Gates
+
+`evaluate-research-gates` evaluates local research artifacts and writes one gate report:
+
+```bash
+python -m ashare_alpha evaluate-research-gates --source outputs/pipelines/pipeline_2026-03-20/manifest.json
+python -m ashare_alpha evaluate-research-gates --source outputs/adjusted_research/REPORT_ID/adjusted_research_report.json
+```
+
+Outputs are written under `outputs/gates/`:
+
+- `research_gate_report.json`
+- `research_gate_report.md`
+- `research_gate_issues.csv`
+
+Gate decisions are `PASS`, `WARN`, and `BLOCK`. `BLOCK` returns a non-zero exit code; `WARN` requires manual review but does not fail the command. Gates are research quality controls only: they do not change default `run-pipeline`, `run-backtest`, or candidate selection behavior unless optional gate flags are used, and they do not constitute investment advice or guarantee future returns. See `docs/RESEARCH_QUALITY_GATES_SPEC.md`.
+
 ## Adjusted Research Comparison
 
 `adjusted-research-report` builds one offline report that compares raw, qfq, and hfq factor and backtest results:

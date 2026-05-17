@@ -72,10 +72,14 @@ def render_pipeline_summary_markdown(manifest: PipelineManifest) -> str:
         ("probability", manifest.probability_csv_path),
         ("leakage_audit", manifest.leakage_audit_path),
         ("quality_report", manifest.quality_report_path),
+        ("security_scan", manifest.security_scan_path),
+        ("research_gate", manifest.gate_report_path),
         ("daily_report", manifest.daily_report_path),
     ]:
         if path:
             lines.append(f"- {label}：{path}")
+    if manifest.gate_decision:
+        lines.extend(["", "## 6. Research Quality Gates", f"- gate_decision: {manifest.gate_decision}"])
     lines.extend(
         [
             "",

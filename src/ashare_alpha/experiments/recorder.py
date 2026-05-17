@@ -45,17 +45,20 @@ def extract_metrics_from_output(output_dir: Path, command: str) -> list[Experime
     if not base.exists():
         return []
     normalized = command.strip().lower()
+    gate_metrics = _gate_metrics(base / "research_gate_report.json")
     if normalized in {"run-backtest", "backtest-report"}:
-        return _metrics_from_mapping(base / "metrics.json", _BACKTEST_METRICS, "backtest")
+        return _metrics_from_mapping(base / "metrics.json", _BACKTEST_METRICS, "backtest") + gate_metrics
     if normalized == "run-pipeline":
-        return _metrics_from_mapping(base / "manifest.json", _PIPELINE_METRICS, "pipeline")
+        return _metrics_from_mapping(base / "manifest.json", _PIPELINE_METRICS, "pipeline") + gate_metrics
     if normalized == "train-probability-model":
-        return _probability_metrics(base / "metrics.json")
+        return _probability_metrics(base / "metrics.json") + gate_metrics
     if normalized == "daily-report":
-        return _daily_report_metrics(base / "daily_report.json")
+        return _daily_report_metrics(base / "daily_report.json") + gate_metrics
     if normalized == "adjusted-research-report":
-        return _adjusted_research_metrics(base / "adjusted_research_report.json")
-    return []
+        return _adjusted_research_metrics(base / "adjusted_research_report.json") + gate_metrics
+    if normalized == "evaluate-research-gates":
+        return gate_metrics
+    return gate_metrics
 
 
 class ExperimentRecorder:
@@ -231,6 +234,26 @@ def _adjusted_research_metrics(path: Path) -> list[ExperimentMetric]:
                         category="adjusted_research",
                     )
                 )
+    return metrics
+
+
+def _gate_metrics(path: Path) -> list[ExperimentMetric]:
+    if not path.exists():
+        matches = sorted(path.parent.glob("**/research_gate_report.json"))
+        path = matches[0] if matches else path
+    payload = _read_json(path)
+    if not isinstance(payload, dict):
+        return []
+    metrics = [
+        ExperimentMetric(
+            name="gate_overall_decision",
+            value=payload.get("overall_decision"),
+            category="research_gate",
+        )
+    ]
+    for name in ("blocker_count", "warning_count", "issue_count"):
+        if name in payload:
+            metrics.append(ExperimentMetric(name=f"gate_{name}", value=payload.get(name), category="research_gate"))
     return metrics
 
 
